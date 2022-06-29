@@ -1,0 +1,150 @@
+local sc_helpers = {}
+
+function sc_helpers.folder_callback(file,voice)
+  print(file)
+  softcut.level(voice, params:get("level_"..voice))
+  softcut.enable(voice,1)
+  local split_at = string.match(file, "^.*()/")
+  local folder = string.sub(file, 1, split_at)
+  file = string.sub(file, split_at + 1)
+  
+  local wavs = util.scandir(folder)
+  local clean_wavs = {}
+  local sample_iterator = 0
+  for index, data in ipairs(wavs) do
+    if string.match(data, ".wav") or string.match(data, ".flac") or string.match(data, ".aiff") then
+      table.insert(clean_wavs, data)
+      sample_iterator = sample_iterator + 1
+    end
+  end
+  print("voice "..voice.." sample count: "..sample_iterator)
+  tab.print(clean_wavs)
+
+  softcut.buffer_clear_region(softcut_offsets[voice], max_sample_duration, 0, 0)
+
+  local import_length = {}
+  
+  local total_allowance = max_sample_duration
+  
+  samples[voice].sample_count = 0
+  
+  for i = 1, sample_iterator do
+    local samp = folder .. clean_wavs[i]
+    local ch, len, rate = audio.file_info(samp)
+    
+    import_length[i] = len/rate
+    
+    total_allowance = total_allowance - (import_length[i] + 0.25)
+    if total_allowance > 0 then
+    
+      samples[voice][i] = {}
+      
+      samples[voice][i].sample_rate = rate
+      -- put 0.25s in between each sample:
+      samples[voice][i].start_point = i == 1 and softcut_offsets[voice] or samples[voice][i-1].end_point + 0.25
+      samples[voice][i].end_point = samples[voice][i].start_point + import_length[i]
+      softcut.buffer_read_mono(samp, 0, samples[voice][i].start_point, import_length[i], 1, 1, 0, 1)
+      samples[voice].sample_count = i
+    else
+      print("sample import time full!")
+      break
+    end
+    
+  end
+  if samples[voice].sample_count > 0 then
+    local parent_path = string.gsub(folder, "/home/we/dust/audio/", "")
+    parent_path = util.trim_string_to_width("loaded: "..parent_path,120)
+    parent_path = "<"..parent_path..">"
+    params:lookup_param("voice "..voice.." sample folder text").name = parent_path
+    params:hide("voice "..voice.." sample folder")
+    params:show("voice "..voice.." sample folder text")
+    _menu.rebuild_params()
+  end
+  
+end
+
+function sc_helpers.clear_voice(voice)
+  softcut.level(voice, 0)
+  softcut.buffer_clear_region(softcut_offsets[voice], max_sample_duration, 0, 0)
+  softcut.enable(voice,0)
+  params:lookup_param("voice "..voice.." sample folder").path = _path.audio
+  samples[voice].sample_count = 0
+  -- params:set("voice "..voice.." sample folder text", "")
+  params:lookup_param("voice "..voice.." sample folder text").name = " "
+  params:show("voice "..voice.." sample folder")
+  params:hide("voice "..voice.." sample folder text")
+  _menu.rebuild_params()
+end
+
+function sc_helpers.play_slice(voice,slice)
+  if samples[voice].sample_count > 0 then
+    slice = util.wrap(slice,1,samples[voice].sample_count)
+    samples[voice].current = slice
+    softcut.rate(voice,sc_helpers.get_total_pitch_offset(voice))
+    softcut.loop_start(voice,samples[voice][slice].start_point)
+    softcut.loop_end(voice,samples[voice][slice].end_point)
+    local pos;
+    if samples[voice].changed_direction then
+      pos = samples[voice].reverse and samples[voice][slice].end_point-0.001 or samples[voice][slice].start_point + 0.001
+    else
+      pos = samples[voice].reverse and samples[voice][slice].end_point or samples[voice][slice].start_point
+    end
+    softcut.position(voice,pos)
+  end
+end
+
+function sc_helpers.get_total_pitch_offset(voice)
+  local total_offset;
+  total_offset = params:get("semitone_offset_"..voice)
+  local sample_rate_compensation;
+  local i = (samples[voice].current ~= nil and samples[voice].current or 1)
+  if samples[voice].sample_count == 0 then
+    return(1)
+  else
+    if (48000/samples[voice][i].sample_rate) > 1 then
+      sample_rate_compensation = ((1200 * math.log(48000/samples[voice][i].sample_rate,2))/-100)
+    else
+      sample_rate_compensation = ((1200 * math.log(samples[voice][i].sample_rate/48000,2))/100)
+    end
+    total_offset = total_offset + sample_rate_compensation
+    local step_rate;
+    total_offset = math.pow(0.5, -total_offset / 12) * (params:get("reverse_"..voice) == 1 and -1 or 1)
+    if params:get("pitch_control_"..voice) ~= 0 then
+      total_offset = total_offset + (total_offset * (params:get("pitch_control_"..voice)/100))
+    end
+    if total_offset < 0 then
+      if not samples[voice].reverse then
+        samples[voice].changed_direction = true
+      else
+        samples[voice].changed_direction = false
+      end
+      samples[voice].reverse = true
+    else
+      if samples[voice].reverse then
+        samples[voice].changed_direction = true
+      else
+        samples[voice].changed_direction = false
+      end
+      samples[voice].reverse = false
+    end
+    return (total_offset)
+  end
+end
+
+function sc_helpers.toggle_softcut_params(state, i)
+  params[state](params, "voice "..i.." clear")
+  params[state](params, "semitone_offset_"..i)
+  params[state](params, "pitch_control_"..i)
+  params[state](params, "reverse_"..i)
+  params[state](params, "level_"..i)
+  params[state](params, "pan_"..i)
+  params[state](params, "post_filter_fc_"..i)
+  params[state](params, "post_filter_lp_"..i)
+  params[state](params, "post_filter_hp_"..i)
+  params[state](params, "post_filter_bp_"..i)
+  params[state](params, "post_filter_dry_"..i)
+  params[state](params, "post_filter_rq_"..i)
+  _menu.rebuild_params()
+end
+
+return sc_helpers
