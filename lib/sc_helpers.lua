@@ -29,11 +29,13 @@ end
 
 function sc_helpers.file_callback(file,voice)
 
-  if file_load_clock[voice] then clock.cancel(file_load_clock[voice]) end
+  if file_load_clock[voice] then clock.cancel(file_load_clock[voice]) file_load_clock[voice] = nil end
   file_load_clock[voice] = clock.run(
     function()
       softcut.level(voice, 0)
-      clock.sleep(0.01)
+      if file_load_clock[voice] then
+        clock.sleep(0.01)
+      end
       softcut.enable(voice,1)
 
       if file ~= "-" and file ~= "" then
@@ -56,7 +58,9 @@ function sc_helpers.file_callback(file,voice)
       end
 
       samples[voice].mode = 'file'
-      clock.sleep(0.25)
+      if file_load_clock[voice] then
+        clock.sleep(0.25)
+      end
       softcut.level(voice, params:get("level_"..voice))
     end
   )
