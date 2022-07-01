@@ -1,10 +1,17 @@
 local sc_params = {}
 
+local sc_fn = include 'lib/sc_helpers'
+
 function sc_params.init()
 
+  sc_fn.move_samples_into_audio()
+
   softcut_offsets = {1,102,204,1,102,204} -- 100 seconds of samples per voice, with 2 seconds of wiggle room
+  softcut_buffers = {1,1,1,2,2,2}
   max_sample_duration = 100
   samples = {}
+
+  params:add_separator("VOICES")
 
   for i = 1,softcut.VOICE_COUNT do
     
@@ -14,7 +21,7 @@ function sc_params.init()
     }
     
     softcut.buffer_clear()
-    softcut.buffer(i, i<=3 and 1 or 2)
+    softcut.buffer(i, softcut_buffers[i])
     softcut.enable(i,0)
     softcut.play(i,1)
     softcut.loop(i,0)
@@ -25,9 +32,33 @@ function sc_params.init()
     softcut.rate(i,1)
     softcut.level_slew_time(i,0.01)
     
-    params:add_group("voice ["..i.."]", 55)
+    -- params:add_group("voice ["..i.."]", 55)
+    params:add_group("voice ["..i.."]", 15)
 
     params:add_separator("voice controls")
+
+    -- params:add_file("voice "..i.." sample folder", "load folder", _path.audio)
+    -- params:set_action("voice "..i.." sample folder",
+    --   function(file)
+    --     if file ~= _path.audio then
+    --       sc_fn.folder_callback(file,i)
+    --     elseif file == _path.audio then
+    --     end
+    --   end
+    -- )
+
+    params:add_file("voice "..i.." sample", "load sample", _path.audio)
+    params:set_action("voice "..i.." sample",
+      function(file)
+        if file ~= _path.audio then
+          sc_fn.file_callback(file,i)
+        elseif file == _path.audio then
+        end
+      end
+    )
+
+    params:add_text("voice "..i.." sample folder text", "", "")
+    params:hide("voice "..i.." sample folder text")
 
     params:add{
       type = 'trigger',
@@ -36,31 +67,8 @@ function sc_params.init()
       action =
         function()
           sc_fn.clear_voice(i)
-          -- sc_fn.toggle_softcut_params("hide", i)
         end
     }
-
-    params:add_file("voice "..i.." sample folder", "load folder", _path.audio)
-    params:set_action("voice "..i.." sample folder",
-      function(file)
-        -- if file ~= _path.audio and samples[i].sample_count == 0 then -- no longer needed, cuz hiding the param
-        if file ~= _path.audio then
-          sc_fn.folder_callback(file,i)
-          -- sc_fn.toggle_softcut_params("show", i)
-          -- for k,v in pairs(sc_lfos.targets) do
-          --   params:lookup_param("lfo_"..v..i).options[1] = "off"
-          -- end
-        elseif file == _path.audio then
-          -- sc_fn.toggle_softcut_params("hide", i)
-          -- for k,v in pairs(sc_lfos.targets) do
-          --   params:lookup_param("lfo_"..v..i).options[1] = "off (load sample first)"
-          -- end
-        end
-      end
-    )
-
-    params:add_text("voice "..i.." sample folder text", "", "")
-    params:hide("voice "..i.." sample folder text")
     
     params:add{
       type = "control",
@@ -84,10 +92,11 @@ function sc_params.init()
       type = "control",
       id = "semitone_offset_"..i,
       name = "semitone offset ["..i.."]",
-      controlspec = controlspec.new(-24, 24, 'lin', 0.01, 0, 'st', 1/48, nil),
+      controlspec = controlspec.new(-48, 48, 'lin', 0.01, 0, 'st', 1/96, nil),
       action = function(x)
         samples[i].rate_offset = math.pow(0.5, -x / 12)
-        softcut.rate(i,sc_fn.get_total_pitch_offset(i))
+        samples[i].semitone_offset = x
+        softcut.rate(i,sc_fn.get_total_pitch_offset(i, samples[i].mode))
       end
     }
 
@@ -95,10 +104,11 @@ function sc_params.init()
       type = "control",
       id = "pitch_control_"..i,
       name = "pitch control ["..i.."]",
-      controlspec = controlspec.new(-12, 12, 'lin', 0.01, 0, nil, 1/240, nil),
+      controlspec = controlspec.new(-25, 25, 'lin', 0.01, 0, nil, 1/500, nil),
       formatter = function(param) return(util.round(param:get(),0.01).."%") end,
       action = function(x)
-        softcut.rate(i,sc_fn.get_total_pitch_offset(i))
+        samples[i].pitch_control = x/100
+        softcut.rate(i,sc_fn.get_total_pitch_offset(i, samples[i].mode))
       end
     }
 
@@ -108,7 +118,8 @@ function sc_params.init()
       name = "reverse ["..i.."]",
       behavior = "toggle",
       action = function(x)
-        softcut.rate(i,sc_fn.get_total_pitch_offset(i))
+        samples[i].reverse = x == 1 and -1 or 1
+        softcut.rate(i,sc_fn.get_total_pitch_offset(i, samples[i].mode))
       end
     }
 
@@ -149,32 +160,6 @@ function sc_params.init()
       end
     }
 
-    -- 14 params ^
-
-    for k,v in pairs(sc_lfos.targets) do
-      local group_name = string.gsub(sc_lfos.specs[v].group_name,"LFOS","LFO RESETS")
-      params:add_separator(group_name)
-      params:add_option("expand_"..v.."_lfo_"..i, "▶", {"◀","▼"}, 1)
-      params:set_action("expand_"..v.."_lfo_"..i,
-        function(x)
-          if x == 1 then
-            params:lookup_param("expand_"..v.."_lfo_"..i).name = "▶"
-            for voices = 1,softcut.VOICE_COUNT do
-              params:hide("reset_"..v.."_lfo_"..i.."_"..voices)
-            end
-          elseif x == 2 then
-            params:lookup_param("expand_"..v.."_lfo_"..i).name = "▼"
-            for voices = 1,softcut.VOICE_COUNT do
-              params:show("reset_"..v.."_lfo_"..i.."_"..voices)
-            end
-          end
-          _menu.rebuild_params()
-        end
-      )
-      for voices = 1,softcut.VOICE_COUNT do
-        params:add_option("reset_"..v.."_lfo_"..i.."_"..voices, "reset ["..voices.."] on trig", {"no","yes"},1)
-      end
-    end
   end
   
 end

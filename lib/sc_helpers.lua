@@ -1,7 +1,44 @@
 local sc_helpers = {}
 
+function sc_helpers.move_samples_into_audio()
+  if not util.file_exists(_path.audio..'nc03-ds') then
+    os.execute('mv '..norns.state.path..'/nc03-ds '.._path.audio..'nc03-ds')
+  end
+end
+
+function sc_helpers.file_callback(file,voice)
+
+  print("loading: "..file.." into voice "..voice)
+  softcut.level(voice, params:get("level_"..voice))
+  softcut.enable(voice,1)
+
+  if file ~= "-" and file ~= "" then
+    local ch, len, rate = audio.file_info(file)
+    samples[voice].sample_rate = rate
+
+    local import_length = len/rate
+
+    samples[voice].start_point = softcut_offsets[voice]
+
+    if import_length < max_sample_duration then
+      samples[voice].end_point = samples[voice].start_point + import_length
+    else
+      samples[voice].end_point = samples[voice].start_point + max_sample_duration
+    end
+
+    softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
+    softcut.buffer_read_mono(file, 0, samples[voice].start_point, import_length, 1, softcut_buffers[voice], 0, 1)
+    samples[voice].sample_count = 1
+  end
+
+  samples[voice].mode = 'file'
+
+end
+
 function sc_helpers.folder_callback(file,voice)
-  print(file)
+  
+  print("loading: folder into voice "..voice)
+
   softcut.level(voice, params:get("level_"..voice))
   softcut.enable(voice,1)
   local split_at = string.match(file, "^.*()/")
@@ -20,7 +57,7 @@ function sc_helpers.folder_callback(file,voice)
   print("voice "..voice.." sample count: "..sample_iterator)
   tab.print(clean_wavs)
 
-  softcut.buffer_clear_region(softcut_offsets[voice], max_sample_duration, 0, 0)
+  softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
 
   local import_length = {}
   
@@ -43,7 +80,7 @@ function sc_helpers.folder_callback(file,voice)
       -- put 0.25s in between each sample:
       samples[voice][i].start_point = i == 1 and softcut_offsets[voice] or samples[voice][i-1].end_point + 0.25
       samples[voice][i].end_point = samples[voice][i].start_point + import_length[i]
-      softcut.buffer_read_mono(samp, 0, samples[voice][i].start_point, import_length[i], 1, 1, 0, 1)
+      softcut.buffer_read_mono(samp, 0, samples[voice][i].start_point, import_length[i], 1, softcut_buffers[voice], 0, 1)
       samples[voice].sample_count = i
     else
       print("sample import time full!")
@@ -59,73 +96,81 @@ function sc_helpers.folder_callback(file,voice)
     params:hide("voice "..voice.." sample folder")
     params:show("voice "..voice.." sample folder text")
     _menu.rebuild_params()
+    samples[voice].mode = 'folder'
   end
-  
 end
 
 function sc_helpers.clear_voice(voice)
   softcut.level(voice, 0)
-  softcut.buffer_clear_region(softcut_offsets[voice], max_sample_duration, 0, 0)
+  softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
   softcut.enable(voice,0)
-  params:lookup_param("voice "..voice.." sample folder").path = _path.audio
+  if samples[voice].mode == 'folder' then
+    params:lookup_param("voice "..voice.." sample folder").path = _path.audio
+    params:lookup_param("voice "..voice.." sample folder text").name = " "
+    params:show("voice "..voice.." sample folder")
+    params:hide("voice "..voice.." sample folder text")
+    _menu.rebuild_params()
+  end
   samples[voice].sample_count = 0
-  -- params:set("voice "..voice.." sample folder text", "")
-  params:lookup_param("voice "..voice.." sample folder text").name = " "
-  params:show("voice "..voice.." sample folder")
-  params:hide("voice "..voice.." sample folder text")
-  _menu.rebuild_params()
 end
 
 function sc_helpers.play_slice(voice,slice)
-  if samples[voice].sample_count > 0 then
+  if samples[voice] and samples[voice].sample_count > 0 then
     slice = util.wrap(slice,1,samples[voice].sample_count)
     samples[voice].current = slice
-    softcut.rate(voice,sc_helpers.get_total_pitch_offset(voice))
-    softcut.loop_start(voice,samples[voice][slice].start_point)
-    softcut.loop_end(voice,samples[voice][slice].end_point)
+    softcut.rate(voice,sc_helpers.get_total_pitch_offset(voice, samples[voice].mode))
+    local target = samples[voice].mode == 'file' and samples[voice] or samples[voice][slice]
+    softcut.loop_start(voice,target.start_point)
+    softcut.loop_end(voice,target.end_point)
     local pos;
     if samples[voice].changed_direction then
-      pos = samples[voice].reverse and samples[voice][slice].end_point-0.001 or samples[voice][slice].start_point + 0.001
+      pos = samples[voice].reversed and target.end_point-0.001 or target.start_point + 0.001
     else
-      pos = samples[voice].reverse and samples[voice][slice].end_point or samples[voice][slice].start_point
+      pos = samples[voice].reversed and target.end_point or target.start_point
     end
     softcut.position(voice,pos)
   end
 end
 
-function sc_helpers.get_total_pitch_offset(voice)
+function sc_helpers.get_total_pitch_offset(voice, mode)
   local total_offset;
-  total_offset = params:get("semitone_offset_"..voice)
+  total_offset = samples[voice].semitone_offset
   local sample_rate_compensation;
   local i = (samples[voice].current ~= nil and samples[voice].current or 1)
   if samples[voice].sample_count == 0 then
     return(1)
   else
-    if (48000/samples[voice][i].sample_rate) > 1 then
-      sample_rate_compensation = ((1200 * math.log(48000/samples[voice][i].sample_rate,2))/-100)
+    local target;
+    if mode == 'file' then
+      target = samples[voice]
     else
-      sample_rate_compensation = ((1200 * math.log(samples[voice][i].sample_rate/48000,2))/100)
+      target = samples[voice][i]
+    end
+    if (48000/target.sample_rate) > 1 then
+      sample_rate_compensation = ((1200 * math.log(48000/target.sample_rate,2))/-100)
+    else
+      sample_rate_compensation = ((1200 * math.log(target.sample_rate/48000,2))/100)
     end
     total_offset = total_offset + sample_rate_compensation
     local step_rate;
-    total_offset = math.pow(0.5, -total_offset / 12) * (params:get("reverse_"..voice) == 1 and -1 or 1)
-    if params:get("pitch_control_"..voice) ~= 0 then
-      total_offset = total_offset + (total_offset * (params:get("pitch_control_"..voice)/100))
+    total_offset = math.pow(0.5, -total_offset / 12) * (samples[voice].reverse)
+    if samples[voice].pitch_control ~= 0 then
+      total_offset = total_offset + (total_offset * samples[voice].pitch_control)
     end
     if total_offset < 0 then
-      if not samples[voice].reverse then
+      if not samples[voice].reversed then
         samples[voice].changed_direction = true
       else
         samples[voice].changed_direction = false
       end
-      samples[voice].reverse = true
+      samples[voice].reversed = true
     else
-      if samples[voice].reverse then
+      if samples[voice].reversed then
         samples[voice].changed_direction = true
       else
         samples[voice].changed_direction = false
       end
-      samples[voice].reverse = false
+      samples[voice].reversed = false
     end
     return (total_offset)
   end
