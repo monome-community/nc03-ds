@@ -1,43 +1,69 @@
 local sc_helpers = {}
 
+local file_load_clock = {}
+local file_clear_clock = {}
+
 function sc_helpers.move_samples_into_audio()
   if not util.file_exists(_path.audio..'nc03-ds') then
     os.execute('mv '..norns.state.path..'/nc03-ds '.._path.audio..'nc03-ds')
   end
 end
 
+function sc_helpers.load_kit(which)
+
+  local paths = {
+    '01-bd',
+    '02-sd',
+    '03-tm',
+    '04-cp',
+    '05-rs',
+    '06-cb',
+    '07-hh',
+  }
+
+  for i = 1,6 do
+    print(_path.audio..'nc03-ds/'..paths[i]..'/'..paths[i]..'_'..which..'.flac')
+    params:set("voice "..i.." sample", _path.audio..'nc03-ds/'..paths[i]..'/'..paths[i]..'_'..which..'.flac')
+  end
+end
+
 function sc_helpers.file_callback(file,voice)
 
-  print("loading: "..file.." into voice "..voice)
-  softcut.level(voice, params:get("level_"..voice))
-  softcut.enable(voice,1)
+  if file_load_clock[voice] then clock.cancel(file_load_clock[voice]) end
+  file_load_clock[voice] = clock.run(
+    function()
+      softcut.level(voice, 0)
+      clock.sleep(0.01)
+      softcut.enable(voice,1)
 
-  if file ~= "-" and file ~= "" then
-    local ch, len, rate = audio.file_info(file)
-    samples[voice].sample_rate = rate
+      if file ~= "-" and file ~= "" then
+        local ch, len, rate = audio.file_info(file)
+        samples[voice].sample_rate = rate
 
-    local import_length = len/rate
+        local import_length = len/rate
 
-    samples[voice].start_point = softcut_offsets[voice]
+        samples[voice].start_point = softcut_offsets[voice]
 
-    if import_length < max_sample_duration then
-      samples[voice].end_point = samples[voice].start_point + import_length
-    else
-      samples[voice].end_point = samples[voice].start_point + max_sample_duration
+        if import_length < max_sample_duration then
+          samples[voice].end_point = samples[voice].start_point + import_length
+        else
+          samples[voice].end_point = samples[voice].start_point + max_sample_duration
+        end
+
+        softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
+        softcut.buffer_read_mono(file, 0, samples[voice].start_point, import_length, 1, softcut_buffers[voice], 0, 1)
+        samples[voice].sample_count = 1
+      end
+
+      samples[voice].mode = 'file'
+      clock.sleep(0.25)
+      softcut.level(voice, params:get("level_"..voice))
     end
-
-    softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
-    softcut.buffer_read_mono(file, 0, samples[voice].start_point, import_length, 1, softcut_buffers[voice], 0, 1)
-    samples[voice].sample_count = 1
-  end
-
-  samples[voice].mode = 'file'
+  )
 
 end
 
 function sc_helpers.folder_callback(file,voice)
-  
-  print("loading: folder into voice "..voice)
 
   softcut.level(voice, params:get("level_"..voice))
   softcut.enable(voice,1)
@@ -101,17 +127,25 @@ function sc_helpers.folder_callback(file,voice)
 end
 
 function sc_helpers.clear_voice(voice)
-  softcut.level(voice, 0)
-  softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
-  softcut.enable(voice,0)
-  if samples[voice].mode == 'folder' then
-    params:lookup_param("voice "..voice.." sample folder").path = _path.audio
-    params:lookup_param("voice "..voice.." sample folder text").name = " "
-    params:show("voice "..voice.." sample folder")
-    params:hide("voice "..voice.." sample folder text")
-    _menu.rebuild_params()
-  end
-  samples[voice].sample_count = 0
+  if file_clear_clock[voice] then clock.cancel(file_clear_clock[voice]) end
+  file_clear_clock[voice] = clock.run(
+    function()
+      softcut.level(voice, 0)
+      samples[voice].sample_count = 0
+      clock.sleep(0.25)
+      softcut.buffer_clear_region_channel(softcut_buffers[voice], softcut_offsets[voice], max_sample_duration, 0, 0)
+      softcut.enable(voice,0)
+      if samples[voice].mode == 'folder' then
+        params:lookup_param("voice "..voice.." sample folder").path = _path.audio
+        params:lookup_param("voice "..voice.." sample folder text").name = " "
+        params:show("voice "..voice.." sample folder")
+        params:hide("voice "..voice.." sample folder text")
+        _menu.rebuild_params()
+      elseif samples[voice].mode == 'file' then
+        params:set('voice '..voice..' sample', _path.audio)
+      end
+    end
+  )
 end
 
 function sc_helpers.play_slice(voice,slice)

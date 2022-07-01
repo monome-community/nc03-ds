@@ -1,6 +1,7 @@
 local sc_params = {}
 
 local sc_fn = include 'lib/sc_helpers'
+local frm = require 'formatters'
 
 function sc_params.init()
 
@@ -30,6 +31,7 @@ function sc_params.init()
     softcut.loop_end(i,softcut_offsets[i]+1) -- will get overridden when we load sample folders, anyway
     softcut.position(i,softcut_offsets[i]+1) -- set to the loop end for each voice, so we aren't playing anything
     softcut.rate(i,1)
+    softcut.pan_slew_time(i,0.01)
     softcut.level_slew_time(i,0.01)
     
     -- params:add_group("voice ["..i.."]", 55)
