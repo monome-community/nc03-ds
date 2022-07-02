@@ -96,15 +96,13 @@ end
 
 function randomize_lfos()
   for k,v in pairs (lfos.groups) do
-    -- if k ~= "SEMITONE OFFSET" then
-      for i = 1,6 do
-        params:set("lfo "..k.." "..i, 2)
-        params:set("lfo depth "..k.." "..i, math.random(40,100))
-        params:set("lfo position "..k.." "..i, 4)
-        params:set("lfo beats "..k.." "..i, math.random(1,4))
-        params:set("lfo shape "..k.." "..i, math.random(3))
-      end
-    -- end
+    for i = 1,6 do
+      params:set("lfo "..k.." "..i, 2)
+      params:set("lfo depth "..k.." "..i, math.random(40,100))
+      params:set("lfo position "..k.." "..i, 4)
+      params:set("lfo beats "..k.." "..i, math.random(1,4))
+      params:set("lfo shape "..k.." "..i, math.random(3))
+    end
   end
 end
 
@@ -214,5 +212,7 @@ function redraw()
   screen.text(seq_active and "K2: stop" or "")
   screen.move(128,60)
   screen.text_right("K3: load seq "..queued_seq)
+  screen.move(0,12)
+  screen.text(already_randomized and "~~~" or "")
   screen.update()
 end
