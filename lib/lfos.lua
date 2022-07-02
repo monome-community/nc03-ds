@@ -6,7 +6,8 @@
 -- 2. register script parameters (by ID) to LFO groups and assign callbacks for the LFO output values.
 --    eg. lfos:register('param_id', 'desired group', function(x) parse_value(x) end)
 --    callbacks have two string-based templates:
---      a. 'map param' will change the param's value (via 'params:set(parameter)'), which will also execute the action
+--      a. 'map param' will change the param's value (via 'params:set(parameter)'), which will also execute the action.
+--         ^ this is the default if no string is provided.
 --      b. 'param action' will execute the script param's action without changing the param's value
 --    callbacks can also be freely assigned, eg. function(val) params:lookup_param('filter cutoff').action(val) end
 -- 3. add the LFO parameters with lfos:add_params()
