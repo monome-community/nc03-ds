@@ -1,14 +1,14 @@
 # (norns/circle/03) dressed in sequins
 
->a gathering— a group study where participants each create a script according to a prompt. scripts are submitted by an established deadline. discussion and help will be provided to facilitate completion of scripts.
+> a gathering— a group study where participants each create a script according to a prompt. scripts are submitted by an established deadline. discussion and help will be provided to facilitate completion of scripts.
 >
->this series will focus on softcut. for an introduction, see softcut studies 61. for general norns scripting, see norns studies 33.
+> this series will focus on softcut. for an introduction, see [softcut studies](https://monome.org/docs/norns/softcut/). for general norns scripting, see [norns studies](https://monome.org/docs/norns/studies/). this edition will also extensively use [sequins](https://monome.org/docs/norns/reference/lib/sequins).
 >
-> upon completion we will release the pack of scripts as a collection along a bandcamp compilation of captures from each script.
+> upon completion we will release the pack of scripts as a collection along a bandcamp compilation of captures from each script. see [the collected past gatherings](https://llllllll.co/t/norns-circle-collected/30411).
 >
->we’ll be here throughout the process to assist everyone in getting scripts working. please ask questions— this is an ideal time to learn.
+> we’ll be here throughout the process to assist everyone in getting scripts working. please ask questions -- this is an ideal time to learn.
 >
->future prompts will have different parameters. don’t go overboard building out your script with extra functionality— try to stay close to the prompt.
+> future prompts will have different parameters. don’t go overboard building out your script with extra functionality -- try to stay close to the prompt.
 
 ### norns/circle/03 dressed in sequins
 
