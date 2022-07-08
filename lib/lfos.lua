@@ -3,14 +3,17 @@
 --   by @markeats (Changes) + @justmat (hnds)
 
 -- 1. invoke the library (eg. lfos = include 'lib/lfos') and build your scripts parameters as usual
--- 2. register script parameters (by ID) to LFO groups and assign callbacks for the LFO output values.
---    eg. lfos:register('param_id', 'desired group', function(x) parse_value(x) end)
+-- 2. after building a parameter, register it by ID to an LFO group and assign callbacks for the LFO output values.
+--    eg. lfos:register('param_id', parent_group, function(x) parse_value(x) end)
 --    callbacks have two string-based templates:
 --      a. 'map param' will change the param's value (via 'params:set(parameter)'), which will also execute the action
---          ^ this is the default if no string is provided.
+--        ^ this is the default behavior
 --      b. 'param action' will execute the script param's action without changing the param's value
 --    callbacks can also be freely assigned, eg. function(val) params:lookup_param('filter cutoff').action(val) end
--- 3. add the LFO parameters with lfos:add_params()
+-- 3. add the LFO parameters with lfos:add_params(parent_group, separator_name, silent)
+--    ^ parent_group: must match a registered parent group (required)
+--    ^ separator_name: supply if you wish to add a separator to the params UI (optional)
+--    ^ silent: to suppress the 'params:bang()' at the end of the parameter adding (optional)
 
 local frm = require 'formatters'
 
@@ -45,22 +48,23 @@ local update_freq = 128
 local main_header_added = false
 local clock_action_appended = false
 local tempo_updater_clock;
+local lfos_all_loaded = {}
 
 local function lfo_params_visibility(state, group, i)
-  if all_loaded then
+  if lfos_all_loaded[group] then
     params[state](params, "lfo position "..group.." "..i)
     params[state](params, "lfo depth "..group.." "..i)
     params[state](params, "lfo mode "..group.." "..i)
     if state == "show" then
       if params:get("lfo mode "..group.." "..i) == 1 then
         params:hide("lfo free "..group.." "..i)
-        params:show("lfo beats "..group.." "..i)
+        params:show("lfo bars "..group.." "..i)
       elseif params:get("lfo mode "..group.." "..i) == 2 then
-        params:hide("lfo beats "..group.." "..i)
+        params:hide("lfo bars "..group.." "..i)
         params:show("lfo free "..group.." "..i)
       end
     else
-      params:hide("lfo beats "..group.." "..i)
+      params:hide("lfo bars "..group.." "..i)
       params:hide("lfo free "..group.." "..i)
     end
     params[state](params, "lfo shape "..group.." "..i)
@@ -76,11 +80,6 @@ local function return_param_to_baseline(group,i)
   -- when an LFO is turned off, the affected parameter will return to its pre-enabled value,
   --   if it was registered with 'param action'
   params:lookup_param(lfos.groups[group].targets[i]):bang()
-end
-
-local function build_new_lfo_group(parent_group)
-  lfos.groups[parent_group] = new_lfo_table()
-  table.insert(lfos.parent_strings, parent_group)
 end
 
 local function get_lfo_spec(group,i,bound)
@@ -209,7 +208,7 @@ end
 
 local function sync_lfos(group, i)
   if params:get("lfo mode "..group.." "..i) == 1 then
-    lfos.groups[group].freqs[i] = 1/(get_beat_time() * lfos.rates[params:get("lfo beats "..group.." "..i)] * 4)
+    lfos.groups[group].freqs[i] = 1/(get_beat_time() * lfos.rates[params:get("lfo bars "..group.." "..i)] * 4)
   else
     lfos.groups[group].freqs[i] = params:get("lfo free "..group.." "..i)
   end
@@ -218,7 +217,7 @@ end
 local function process_lfo(group)
   local delta = (1 / update_freq) * 2 * math.pi
   local lfo_parent = lfos.groups[group]
-  if all_loaded then
+  if lfos_all_loaded[group] then
     for i = 1,#lfo_parent.targets do
       
       local _t = i
@@ -300,7 +299,8 @@ end
 function lfos:register(param, parent_group, fn)
 
   if self.groups[parent_group] == nil then
-    build_new_lfo_group(parent_group)
+    lfos.groups[parent_group] = new_lfo_table()
+    table.insert(lfos.parent_strings, parent_group)
   end
   if #self.groups[parent_group].targets < self.max_per_group then
     table.insert(self.groups[parent_group].targets, param)
@@ -326,124 +326,115 @@ function lfos:set_action(param, parent_group, fn)
   self.groups[parent_group].actions[param] = fn
 end
 
-function lfos:add_params(reveal_condition)
+function lfos:add_params(parent_group, separator_name, silent)
 
-  if not main_header_added then
-    params:add_separator("LFOS")
+  if not main_header_added and separator_name ~= nil then
+    params:add_separator(separator_name)
     main_header_added = true
   end
 
-  for k,v in pairs(self.parent_strings) do
-    local group = v
-    params:add_group(group, 12 * #self.groups[group].targets)
+  local group = parent_group
+  params:add_group(group, 12 * #self.groups[group].targets)
 
-    for i = 1,#self.groups[group].targets do
+  for i = 1,#self.groups[group].targets do
 
-      self.groups[group].param_types[i] = params:lookup_param(self.groups[group].targets[i]).t
+    self.groups[group].param_types[i] = params:lookup_param(self.groups[group].targets[i]).t
 
-      params:add_separator(params:lookup_param(self.groups[group].targets[i]).name)
-  
-      params:add_option("lfo "..group.." "..i,"lfo",{"off","on"},1)
-      params:set_action("lfo "..group.." "..i,function(x)
-        sync_lfos(group, i)
-        if x == 1 then
-          return_param_to_baseline(group, i)
-          lfo_params_visibility("hide", group, i)
-        elseif x == 2 then
-          if reveal_condition ~= nil then
-            if reveal_condition then
-              params:set("lfo "..group.." "..i, 1)
-              lfo_params_visibility("hide", group, i)
-            else
-              lfo_params_visibility("show", group, i)
-            end
-          else
-            lfo_params_visibility("show", group, i)
-          end
+    params:add_separator(params:lookup_param(self.groups[group].targets[i]).name)
+
+    params:add_option("lfo "..group.." "..i,"lfo",{"off","on"},1)
+    params:set_action("lfo "..group.." "..i,function(x)
+      sync_lfos(group, i)
+      if x == 1 then
+        return_param_to_baseline(group, i)
+        lfo_params_visibility("hide", group, i)
+      elseif x == 2 then
+        lfo_params_visibility("show", group, i)
+      end
+    end)
+    params:add_number("lfo depth "..group.." "..i,"depth",0,100,0,function(param) return (param:get().."%") end)
+    params:set_action("lfo depth "..group.." "..i, function(x)
+      if x == 0 then
+        return_param_to_baseline(group, i)
+      end
+    end)
+
+    params:add{
+      type='control',
+      id="lfo min "..group.." "..i,
+      name="lfo min",
+      controlspec = get_lfo_spec(group,i,"min").spec,
+      formatter =  get_lfo_spec(group,i).formatter
+    }
+
+    params:add{
+      type='control',
+      id="lfo max "..group.." "..i,
+      name="lfo max",
+      controlspec = get_lfo_spec(group,i,"max").spec,
+      formatter = get_lfo_spec(group,i).formatter
+    }
+
+    params:add_option("lfo position "..group.." "..i, "lfo position", {"from min", "from center", "from max"},1)
+
+    params:add_option("lfo mode "..group.." "..i, "lfo mode", {"bars","free"},1)
+    params:set_action("lfo mode "..group.." "..i,
+      function(x)
+        if x == 1 and params:string("lfo "..group.." "..i) == "on" then
+          params:hide("lfo free "..group.." "..i)
+          params:show("lfo bars "..group.." "..i)
+          self.groups[group].freqs[i] = 1/(get_beat_time() * self.rates[params:get("lfo bars "..group.." "..i)] * 4)
+        elseif x == 2 and params:string("lfo "..group.." "..i) == "on" then
+          params:hide("lfo bars "..group.." "..i)
+          params:show("lfo free "..group.." "..i)
+          self.groups[group].freqs[i] = params:get("lfo free "..group.." "..i)
         end
-      end)
-      params:add_number("lfo depth "..group.." "..i,"depth",0,100,0,function(param) return (param:get().."%") end)
-      params:set_action("lfo depth "..group.." "..i, function(x)
-        if x == 0 then
-          return_param_to_baseline(group, i)
-        end
-      end)
-
-      params:add{
-        type='control',
-        id="lfo min "..group.." "..i,
-        name="lfo min",
-        controlspec = get_lfo_spec(group,i,"min").spec,
-        formatter =  get_lfo_spec(group,i).formatter
-      }
-
-      params:add{
-        type='control',
-        id="lfo max "..group.." "..i,
-        name="lfo max",
-        controlspec = get_lfo_spec(group,i,"max").spec,
-        formatter = get_lfo_spec(group,i).formatter
-      }
-
-      params:add_option("lfo position "..group.." "..i, "lfo position", {"from min", "from center", "from max", "from current"},1)
-
-      params:add_option("lfo mode "..group.." "..i, "lfo mode", {"beats","free"},1)
-      params:set_action("lfo mode "..group.." "..i,
-        function(x)
-          if x == 1 and params:string("lfo "..group.." "..i) == "on" then
-            params:hide("lfo free "..group.." "..i)
-            params:show("lfo beats "..group.." "..i)
-            self.groups[group].freqs[i] = 1/(get_beat_time() * self.rates[params:get("lfo beats "..group.." "..i)] * 4)
-          elseif x == 2 and params:string("lfo "..group.." "..i) == "on" then
-            params:hide("lfo beats "..group.." "..i)
-            params:show("lfo free "..group.." "..i)
-            self.groups[group].freqs[i] = params:get("lfo free "..group.." "..i)
-          end
-          _menu.rebuild_params()
-        end
-        )
-      params:add_option("lfo beats "..group.." "..i, "lfo rate", self.rates_as_strings, 9)
-      params:set_action("lfo beats "..group.." "..i,
-        function(x)
-          if params:string("lfo mode "..group.." "..i) == "beats" then
-            self.groups[group].freqs[i] = 1/(get_beat_time() * self.rates[x] * 4)
-          end
-        end
+        _menu.rebuild_params()
+      end
       )
-      params:add{
-        type='control',
-        id="lfo free "..group.." "..i,
-        name="lfo rate",
-        controlspec=controlspec.new(0.001,4,'exp',0.001,0.05,'hz',0.001)
-      }
-      params:set_action("lfo free "..group.." "..i,
-        function(x)
-          if params:string("lfo mode "..group.." "..i) == "free" then
-            self.groups[group].freqs[i] = x
-          end
+    params:add_option("lfo bars "..group.." "..i, "lfo rate", self.rates_as_strings, 9)
+    params:set_action("lfo bars "..group.." "..i,
+      function(x)
+        if params:string("lfo mode "..group.." "..i) == "bars" then
+          self.groups[group].freqs[i] = 1/(get_beat_time() * self.rates[x] * 4)
         end
-      )
-      params:add_option("lfo shape "..group.." "..i, "lfo shape", {"sine","square","random"},1)
-      params:add_trigger("lfo reset "..group.." "..i, "reset lfo")
-      params:set_action("lfo reset "..group.." "..i, function(x) reset_lfo_phase(group,i) end)
-      params:add_option("lfo reset target "..group.." "..i, "reset lfo to", {"floor","ceiling"}, 1)
-      params:hide("lfo free "..group.." "..i)
-    end
-
-    all_loaded = true
-    
-    params:bang()
-
-    self.groups[group].update = function()
-      process_lfo(group)
-    end
-
-    self.groups[group].counter = metro.init(self.groups[group].update, 1 / update_freq)
-    self.groups[group].counter:start()
-
-    reset_lfo_phase(group)
-    update_lfo_freqs(group)
+      end
+    )
+    params:add{
+      type='control',
+      id="lfo free "..group.." "..i,
+      name="lfo rate",
+      controlspec=controlspec.new(0.001,4,'exp',0.001,0.05,'hz',0.001)
+    }
+    params:set_action("lfo free "..group.." "..i,
+      function(x)
+        if params:string("lfo mode "..group.." "..i) == "free" then
+          self.groups[group].freqs[i] = x
+        end
+      end
+    )
+    params:add_option("lfo shape "..group.." "..i, "lfo shape", {"sine","square","random"},1)
+    params:add_trigger("lfo reset "..group.." "..i, "reset lfo")
+    params:set_action("lfo reset "..group.." "..i, function(x) reset_lfo_phase(group,i) end)
+    params:add_option("lfo reset target "..group.." "..i, "reset lfo to", {"floor","ceiling"}, 1)
+    params:hide("lfo free "..group.." "..i)
   end
+
+  lfos_all_loaded[group] = true
+  
+  if not silent then
+    params:bang()
+  end
+
+  self.groups[group].update = function()
+    process_lfo(group)
+  end
+
+  self.groups[group].counter = metro.init(self.groups[group].update, 1 / update_freq)
+  self.groups[group].counter:start()
+
+  reset_lfo_phase(group)
+  update_lfo_freqs(group)
 
   if not clock_action_appended then
     local system_tempo_change_handler = params:lookup_param("clock_tempo").action
@@ -469,7 +460,7 @@ function lfos:add_params(reveal_condition)
     -- since clock params get rebuilt as part of a script clear,
     --  it seems okay to append without re-establishing:
     --  https://github.com/monome/norns/blob/main/lua/core/script.lua#L100
-    
+
     clock_action_appended = true
 
   end
