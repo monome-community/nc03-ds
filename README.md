@@ -26,56 +26,10 @@ construct an evolving expression of rhythmic time using provided synth drum samp
 
 parameters are subject to interpretation. "stability" could mean timbral parameter randomization, but perhaps something else. "horizon" could mean the navigation of changes to rhythmic balance, but perhaps something else. "relax" and "bind" could mean a stop/play mechanism, but perhaps something else.
 
-----
-
-notes on the included LFO library:
-
-modeled after the `params` system, the LFO syntax should feel familiar. once you instantiate it with `< my lfo variable > = include 'lib/lfos' at the top of your script, build your script's parameters as normal. once your script's parameters are built, you can register up to 8 parameter ID's to a single LFO group and assign custom callbacks to the returned values (optional).
-
-for example, if we have a few already-built synthesis parameters we'd like to place LFOs onto:
-
-```lua
-lfos:register('amp', 'SYNTH LFOS')
-lfos:register('pw', 'SYNTH LFOS')
-lfos:register('cutoff', 'SYNTH LFOS')
-lfos:register('pan', 'SYNTH LFOS')
-lfos:add_params()
-```
-
-this will create a `SYNTH LFOS` group after your script's initiated parameters, wherein you'll find LFOs for `amp`, `pw`, `cutoff`, and `pan`. the library will dynamically format `min` / `max` ranges, presentation, and awareness of any additional labels based on the registered parameter. once you engage an LFO's `depth` parameter past 0%, navigating to the corresponding parameters within the norns UI will show their values' new sense of movement.
-
-if direct parameter value manipulation is not desired, and you simply wish to call the underlying parameter actions while retaining the unmodified starting value, you can pass a `'param action'` string argument during LFO assignment, eg:
-
-```lua
-lfos:register('amp', 'SYNTH LFOS', 'param action')
-lfos:register('pw', 'SYNTH LFOS', 'param action')
-lfos:register('cutoff', 'SYNTH LFOS', 'param action')
-lfos:register('pan', 'SYNTH LFOS', 'param action')
-lfos:add_params()
-```
-
-this added argument will leave the parameter's starting value undisturbed, which facilitates two things:
-
-1. if the LFO is turned off (or its `depth` is set to 0%) while registered as `'param action'`, it will restore the parameter's initial value
-2. each LFO can center its `position` on the 'current value', which requires the value in the params UI to remain static
-
-each LFO group consumes a [metro](https://monome.org/docs/norns/reference/metro), of which a script can have 30 -- so if your script doesn't use any other metros then you can feasibly have up to 240 LFOs (8 per group x 30 metros).
-
-this library is a test-run ahead of submitting it to the main norns codebase -- it's been thoroughly tested, but we're hoping to have it fully proofed with your help. if you run into any troubles with the library, just let us know here!
+see the [LFO readme](https://github.com/monome-community/nc03-ds/LFO-readme.md) for additional details on the optional LFO library.  
+see the [softcut helper readme](https://github.com/monome-community/nc03-ds/softcut_helper-readme.md) for additional details on the optional softcut helpers.
 
 ---
-
-notes on the included softcut helper files:
-
-since the prompt for this circle could result in a lot of duplicated effort, we figured it'd be helpful to include some scaffolding for loading samples into softcut, so you can explore the sequencing and manipulation facets of scripting.
-
-`lib/sc_params` provides PARAMETER menu controls for all 6 softcut voices, including buffer allocation. it also moves the bundled samples into the `audio` folder. once you instantiate it with `< my softcut params variable >  = include 'lib/sc_params` at the top of your script, you can simply add `< my softcut params variable >.init()` to your script's `init` and the controls will populate.
-
-`lib/sc_helpers` provides a script functions for different softcut actions, to supplement `sc_params`. once you instantiate it with `< my softcut helper variable > = include 'lib/sc_helpers' at the top of your script, you can:
-
-- pre-load audio files as kits with the following strings: 'default-1', 'default-2', 'fltr-amod-eq', 'fm-lite', 'heavy', 'mods-1', 'mods-2', 'verb-long', 'verb-short'  
-  eg. `sc_fn.load_kit('default-1')`
-- play a specific voice (1 through 6) with `sc_fn.play_slice(voice,1)`
 
 deadline: **sept 1**
 
@@ -87,4 +41,4 @@ record 2-6 minutes of the output of your script using TAPE. feel free to use the
 
 to get started, go to maiden’s project manager, refresh the collection, and install `nc03-ds`. note, this will take some time to download as it includes some audio files.
 
-if you need a hint getting started, check out `scarlet.lua`
+if you need a hint getting started, check out [`scarlet.lua`](https://github.com/monome-community/nc03-ds/blob/main/scarlet.lua)

@@ -42,7 +42,12 @@ function init()
   -- end
   
   -- finally, add our new LFO parameters:
-  lfos:add_params()
+  -- lfos:add_params(parent_group, separator_name, silent)
+  lfos:add_params('LEVELS', 'LFOs', true)
+  lfos:add_params('PAN', nil, true)
+  lfos:add_params('SEMITONE OFFSET', nil, true)
+  lfos:add_params('PITCH CONTROL', nil, true)
+  lfos:add_params('FILTER CUTOFF')
   
   -- build some sequins-based trigger sequencers:
   trigger_seqs = {
