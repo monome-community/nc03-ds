@@ -12,6 +12,8 @@
 
 ### norns/circle/03 dressed in sequins
 
+(nb. requires [norns: update 220802](https://llllllll.co/t/norns-update-220802/57563))
+
 construct an evolving expression of rhythmic time using provided synth drum samples, the new [lfo library](https://monome.org/docs/norns/reference/lib/lfo), and [sequins](https://monome.org/docs/norns/reference/lib/sequins).
 
 - 7 sample groups with 9 variations are provided
