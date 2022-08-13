@@ -18,7 +18,10 @@ function sc_params.init()
     
     samples[i] = {
       sample_count = 0,
-      rate_offset = 0
+      rate_offset = 0,
+      semitone_offset = 0,
+      reverse = 1,
+      pitch_control = 0
     }
     
     softcut.buffer_clear()
@@ -35,9 +38,9 @@ function sc_params.init()
     softcut.level_slew_time(i,0.01)
     
     -- params:add_group("voice ["..i.."]", 55)
-    params:add_group("voice ["..i.."]", 15)
+    params:add_group("voice_"..i, "voice ["..i.."]", 15)
 
-    params:add_separator("voice controls")
+    params:add_separator("voice_"..i.."_controls", "voice controls")
 
     -- params:add_file("voice "..i.." sample folder", "load folder", _path.audio)
     -- params:set_action("voice "..i.." sample folder",
@@ -161,6 +164,8 @@ function sc_params.init()
         softcut.post_filter_rq(i,scaled)
       end
     }
+    
+    params:bang()
 
   end
   

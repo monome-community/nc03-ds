@@ -5,7 +5,8 @@ local file_clear_clock = {}
 
 function sc_helpers.move_samples_into_audio()
   if not util.file_exists(_path.audio..'nc03-ds') then
-    os.execute('mv '..norns.state.path..'/nc03-ds '.._path.audio..'nc03-ds')
+    print('moving audio')
+    os.execute('mv '..norns.state.path..'audio '.._path.audio..'nc03-ds')
   end
 end
 

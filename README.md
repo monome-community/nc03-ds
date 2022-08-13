@@ -18,8 +18,9 @@ construct an evolving expression of rhythmic time using provided synth drum samp
 - no USB controllers, no audio input, no engines
 - map
 	- E1 volume
-	- E2 stability
+	- E2 cadence
 	- E3 horizon
+	- K1 stability
 	- K2 relax
 	- K3 bind
 - visualization of data
