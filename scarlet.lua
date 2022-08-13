@@ -2,7 +2,7 @@
 -- @dndrks
 --
 -- E1 volume
--- E2 cadence
+-- E2 cadence (hold K1)
 -- E3 horizon
 -- K1 stability
 -- K2 relax
