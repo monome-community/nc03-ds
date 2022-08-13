@@ -11,7 +11,7 @@
 
 sc_prm = include 'lib/sc_params' -- param-based controls over softcut
 sc_fn = include 'lib/sc_helpers' -- helper functions for different softcut actions, used by 'sc_params'
-_lfo = require 'lfo' -- parameter-based lfo library
+lfo = require 'lfo' -- parameter-based lfo library
 
 local period_screen = false
 local global_period = 1
@@ -30,7 +30,7 @@ function init()
   
   for i = 1,softcut.VOICE_COUNT do
     
-    lfos.level[i] = _lfo:add{
+    lfos.level[i] = lfo:add{
       -- for each lfo, we'll use the current value as the center of the movement:
       action = function(scaled,raw)
         scaled = util.linlin(0,1,0,-1,scaled)
@@ -38,7 +38,7 @@ function init()
       end
     }
     
-    lfos.pan[i] = _lfo:add{
+    lfos.pan[i] = lfo:add{
       min = -1,
       max = 1,
       action = function(scaled,raw)
@@ -49,7 +49,7 @@ function init()
       end
     }
     
-    lfos.semitone_offset[i] = _lfo:add{
+    lfos.semitone_offset[i] = lfo:add{
       min = -48,
       max = 48,
       action = function(scaled,raw)
@@ -61,7 +61,7 @@ function init()
       end
     }
     
-    lfos.pitch_control[i] = _lfo:add{
+    lfos.pitch_control[i] = lfo:add{
       min = -25,
       max = 25,
       action = function(scaled,raw)
@@ -73,7 +73,7 @@ function init()
       end
     }
     
-    lfos.post_filter_fc[i] = _lfo:add{
+    lfos.post_filter_fc[i] = lfo:add{
       min = 20,
       max = 12000,
       action = function(scaled,raw)
