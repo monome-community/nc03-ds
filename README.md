@@ -12,7 +12,7 @@
 
 ### norns/circle/03 dressed in sequins
 
-construct an evolving expression of rhythmic time using provided synth drum samples, a new library of parameter LFOs, and [sequins](https://monome.org/docs/norns/reference/lib/sequins).
+construct an evolving expression of rhythmic time using provided synth drum samples, the new [lfo library](https://monome.org/docs/norns/reference/lib/lfo), and [sequins](https://monome.org/docs/norns/reference/lib/sequins).
 
 - 7 sample groups with 9 variations are provided
 - no USB controllers, no audio input, no engines
@@ -27,19 +27,20 @@ construct an evolving expression of rhythmic time using provided synth drum samp
 
 parameters are subject to interpretation. "stability" could mean timbral parameter randomization, but perhaps something else. "horizon" could mean the navigation of changes to rhythmic balance, but perhaps something else. "relax" and "bind" could mean a stop/play mechanism, but perhaps something else.
 
-see the [LFO readme](https://github.com/monome-community/nc03-ds/LFO-readme.md) for additional details on the optional LFO library.  
-see the [softcut helper readme](https://github.com/monome-community/nc03-ds/softcut_helper-readme.md) for additional details on the optional softcut helpers.
+see the [lfo docs](https://monome.org/docs/norns/reference/lib/lfo) for additional details on the lfo library.  
+see the [sequins docs](https://monome.org/docs/norns/reference/lib/sequins) for additional details on the sequins library.  
+see the [softcut helper readme](https://github.com/monome-community/nc03-ds/softcut_helper-readme.md) for additional details on the optional softcut helpers including in the `lib` file.
 
 ---
 
-deadline: **sept 1**
+deadline: **oct 1**
 
 submit your script by submitting a PR to github: https://github.com/monome-community/nc03-ds (we will help with instructions when the time comes, or feel free to submit early)
 
-record 2-6 minutes of the output of your script using TAPE. feel free to use the built-in reverb and compessor. upload to google drive, dropbox, etc. post link on thread.
+record 2-3 minutes of the output of your script using TAPE. feel free to use the built-in reverb and compessor. upload to google drive, dropbox, etc. post link on thread.
 
 ---
 
 to get started, go to maiden’s project manager, refresh the collection, and install `nc03-ds`. note, this will take some time to download as it includes some audio files.
 
-if you need a hint getting started, check out [`scarlet.lua`](https://github.com/monome-community/nc03-ds/blob/main/scarlet.lua)
+if you need a place to start from, check out [`scarlet.lua`](https://github.com/monome-community/nc03-ds/blob/main/scarlet.lua)
