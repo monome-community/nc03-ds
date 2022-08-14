@@ -31,7 +31,7 @@ parameters are subject to interpretation. "stability" could mean timbral paramet
 
 see the [lfo docs](https://monome.org/docs/norns/reference/lib/lfo) for additional details on the lfo library.  
 see the [sequins docs](https://monome.org/docs/norns/reference/lib/sequins) for additional details on the sequins library.  
-see the [softcut helper readme](https://github.com/monome-community/nc03-ds/softcut_helper-readme.md) for additional details on the optional softcut helpers including in the `lib` file.
+see the [softcut helper readme](https://github.com/monome-community/nc03-ds/blob/main/softcut_helper-readme.md) for additional details on the optional softcut helpers including in the `lib` file.
 
 ---
 
