@@ -6,51 +6,51 @@
 -- samples, the new lfo library, and sequins.
 
 s=require("sequins")
-lattice = require("lattice")
+lattice=require("lattice")
 
 debounce_sequins=0
 
 function setup_clock()
-    -- use lattice for the clock
-    local lat=lattice:new()
-    pattern=lat:new_pattern{
-      action=function(v)
-        if debounce_sequins>0 then 
-          debounce_sequins=debounce_sequins-1
-          if debounce_sequins==0 then 
-            setup_sequins()
-          end
+  -- use lattice for the clock
+  local lat=lattice:new()
+  pattern=lat:new_pattern{
+    action=function(v)
+      if debounce_sequins>0 then
+        debounce_sequins=debounce_sequins-1
+        if debounce_sequins==0 then
+          setup_sequins()
         end
-        if seqs~=nil then 
-local i=1
-            local seq=seqs[i]()
-            if next(seq)~=nil then 
-              
-              play(i,seq.sample,seq.len*seq.direction)
-            end
+      end
+      if seqs~=nil then
+        local i=1
+        local seq=seqs[i]()
+        if next(seq)~=nil then
 
+          play(i,seq.sample,seq.len*seq.direction)
         end
-      end,
-      division=1/16,
-    }
-    lat:start()
+
+      end
+    end,
+    division=1/16,
+  }
+  lat:start()
 end
 
 function math.sign(x)
-  if x<0 then 
-    return -1
-  elseif x>0 then 
+  if x<0 then
+    return-1
+  elseif x>0 then
     return 1
-  else 
+  else
     return 0
   end
 end
 
 function setup_sequins()
   print("setup_sequins")
-  if seqs==nil then 
+  if seqs==nil then
     seqs={}
-    for i=1,6 do 
+    for i=1,6 do
       -- empty sequins
       table.insert(seqs,s{})
     end
@@ -59,7 +59,7 @@ function setup_sequins()
   for i=1,6 do
     local ptns={}
     local ptn={}
-    for sn=1,32 do 
+    for sn=1,32 do
       local num=params:get(i.."_"..sn)
       -- get sample number from the "10s"
       local sample_num=math.floor(math.abs(num)/10)
@@ -69,42 +69,40 @@ function setup_sequins()
       local is_continue=math.abs(num)%10==1
       -- get the direction from the sign
       local direction=math.sign(num)
-      if num~=0 then 
-                  print(num,sample_num,is_start,is_continue,direction)
-end
-      
+      if num~=0 then
+        print(num,sample_num,is_start,is_continue,direction)
+      end
+
       -- check if its a start, add it to the pattern
-      if is_start or num==0 then 
-        if next(ptn)~=nil then 
+      if is_start or num==0 then
+        if next(ptn)~=nil then
           ptn.len=ptn.stop-ptn.start
           table.insert(ptns,ptn)
         end
-        if is_start then 
+        if is_start then
           ptn={start=sn,stop=sn,sample=sample_num,direction=direction}
         else
           ptn={}
         end
-      elseif is_continue and next(ptn)~=nil then 
+      elseif is_continue and next(ptn)~=nil then
         ptn.stop=sn
       end
     end
     table.insert(hptns,ptns)
   end
-  
+
   if hptns[1]~=nil then
     tab.print(hptns[1])
   end
-  
-  
-  
+
   -- create sequins from this hptn
   for i=1,6 do
     local seq={}
     for sn=1,32 do
       table.insert(seq,{})
     end
-    for _, p in ipairs(hptns) do
-      if p.start~=nil then 
+    for _,p in ipairs(hptns) do
+      if p.start~=nil then
         tab.print(p)
         seq[p.start]=p
         tab.print(seq[p.start])
@@ -115,27 +113,27 @@ end
 end
 
 function setup_parameters()
-    -- each parameter composed of 32 beats
-    for voice=1,6 do 
-      for sn=1,32 do
-        params:add_number(voice.."_"..sn,"beat "..sn,-20000,20000)
-        -- hide the parameters so you don't SEE
-        params:hide(voice.."_"..sn)
-        -- set an action to reload pattern into sequins
-        params:set_action(voice.."_"..sn,function(x)
-          debounce_sequins=10  
-        end)
-      end
+  -- each parameter composed of 32 beats
+  for voice=1,6 do
+    for sn=1,32 do
+      params:add_number(voice.."_"..sn,"beat "..sn,-20000,20000)
+      -- hide the parameters so you don't SEE
+      params:hide(voice.."_"..sn)
+      -- set an action to reload pattern into sequins
+      params:set_action(voice.."_"..sn,function(x)
+        debounce_sequins=10
+      end)
     end
-    
+  end
+
 end
 
 function setup_softcut()
   -- reset softcut
   softcut.reset()
-  
+
   -- create a for loop to initate the softcut voices
-  for i=1,softcut.VOICE_COUNT do 
+  for i=1,softcut.VOICE_COUNT do
     -- which buffer we are using
     softcut.buffer(i,1)
     -- enable voice
@@ -144,7 +142,7 @@ function setup_softcut()
     softcut.play(i,0)
     -- disable looping
     softcut.loop(i,0)
-    -- set crossfade time 
+    -- set crossfade time
     softcut.fade_time(i,0.02)
     -- set rate
     softcut.rate(i,1)
@@ -154,11 +152,11 @@ function setup_softcut()
     softcut.pan_slew_time(i,0.01)
     softcut.level_slew_time(i,0.01)
     softcut.rate_slew_time(i,0.01)
-    
+
     -- for each voice, make a parameter to adjust it
     -- (copy things from sc_params.lua)
     params:add_group("VOICE "..i,10)
-    
+
     params:add{
       type="control",
       id=i.."level",
@@ -167,7 +165,7 @@ function setup_softcut()
       formatter=function(param) return(util.round(param:get()*100,1).."%") end,
       action=function(x) softcut.level(i,x) end,
     }
-    
+
     params:add{
       type="control",
       id=i.."pan",
@@ -237,9 +235,9 @@ function setup_softcut()
         local scaled=util.linlin(0,100,2.0,0.001,x)
         softcut.post_filter_rq(i,scaled)
       end
-    }    
+    }
   end
-  
+
   params:bang()
 end
 
@@ -247,10 +245,10 @@ end
 function setup_samples()
   -- clear the buffer
   softcut.buffer_clear()
-  
+
   -- create an empty table
   -- GLOBAL table
-  samples = {}
+  samples={}
 
   -- copy from sc_helpers.lua
   local paths={
@@ -262,30 +260,30 @@ function setup_samples()
     '06-cb',
     '07-hh',
   }
-  
+
   -- loop through each path
-  for _, folder in ipairs(paths) do
+  for _,folder in ipairs(paths) do
     -- load the folder
     folder=_path.audio.."nc03-ds/"..folder
-    
+
     -- scan the folder
     local all_files=util.scandir(folder)
-    
+
     -- get only audio files
     local clean_wavs={}
-    for _, fname in ipairs(all_files) do
-        -- get pathname filename ext
-        local pathname,filename,ext=string.match(fname,"(.-)([^\\/]-%.?([^%.\\/]*))$")
-        -- get the full path
-        local path=folder.."/"..filename
-        -- check if its an audio file
-        if string.match(ext,"wav") or string.match(ext,"flac") or string.match(ext,"aiff") then
-          table.insert(clean_wavs,path)
-        end
+    for _,fname in ipairs(all_files) do
+      -- get pathname filename ext
+      local pathname,filename,ext=string.match(fname,"(.-)([^\\/]-%.?([^%.\\/]*))$")
+      -- get the full path
+      local path=folder.."/"..filename
+      -- check if its an audio file
+      if string.match(ext,"wav") or string.match(ext,"flac") or string.match(ext,"aiff") then
+        table.insert(clean_wavs,path)
+      end
     end
-    
+
     -- collect informaton on each sample
-    for _, path in ipairs(clean_wavs) do 
+    for _,path in ipairs(clean_wavs) do
       -- get file info
       local ch,len,rate=audio.file_info(path)
       -- get filename
@@ -297,7 +295,7 @@ function setup_samples()
         filename=filename,
       })
     end
-    
+
     -- lets actually load the files now into softcut
     -- figure out the total duration of all the samples
     local total_duration=0
@@ -308,7 +306,7 @@ function setup_samples()
     local time_remaining=softcut.BUFFER_SIZE-total_duration-2
     -- and now we can proportion time to each sample
     local time_per_sample=time_remaining/#samples
-    
+
     -- lets load in each sample into a position
     -- spaced by the calculated time
     local pos=1
@@ -322,7 +320,7 @@ function setup_samples()
       pos=pos+sample.duration+time_per_sample
     end
   end
-  
+
   -- that's it! all samples are loaded
 end
 
@@ -332,7 +330,7 @@ function play(voice,samplei,sn)
   print("play",voice,samplei,sn)
   -- figure out the start+end position
   local pos={start=0,stop=1} -- in seconds
-  if sn>0 then 
+  if sn>0 then
     pos.start=samples[samplei].pos
     pos.stop=pos.start+clock.get_beat_sec()/4*math.abs(sn)
   elseif sn<0 then
@@ -342,18 +340,18 @@ function play(voice,samplei,sn)
     -- sn cannot be 0
     do return end
   end
-  if pos.start<0 then 
+  if pos.start<0 then
     pos.start=0
   end
-  
+
   -- setup the loop positions
-  softcut.rate(voice,params:get(voice.."rate")*(sn>0 and 1 or -1))
+  softcut.rate(voice,params:get(voice.."rate")*(sn>0 and 1 or-1))
   softcut.play(voice,1)
   softcut.loop_start(voice,(sn>0 and pos.start or pos.stop)-0.5)
   softcut.loop_end(voice,(sn>0 and pos.stop or pos.start)+0.5)
   print(pos.start,pos.stop)
   softcut.position(voice,pos.start)
-  
+
 end
 
 
@@ -369,17 +367,17 @@ end
 
 -- runs after you unload a script
 function cleanup()
-  
+
 end
 
 -- key function
 function key(k,z)
-  
+
 end
 
 -- encoder function
 function enc(k,d)
-  
+
 end
 -- cause the screen to draw stuff
 function redraw()
