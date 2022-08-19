@@ -22,13 +22,12 @@ function setup_clock()
         end
       end
       if seqs~=nil then
-        local i=1
-        local seq=seqs[i]()
-        if next(seq)~=nil then
-
-          play(i,seq.sample,seq.len*seq.direction)
+        for i=1,6 do 
+          local seq=seqs[i]()
+          if next(seq)~=nil then
+            play(i,seq.sample,seq.len*seq.direction)
+          end
         end
-
       end
     end,
     division=1/16,
@@ -69,14 +68,11 @@ function setup_sequins()
       local is_continue=math.abs(num)%10==1
       -- get the direction from the sign
       local direction=math.sign(num)
-      if num~=0 then
-        print(num,sample_num,is_start,is_continue,direction)
-      end
 
       -- check if its a start, add it to the pattern
       if is_start or num==0 then
         if next(ptn)~=nil then
-          ptn.len=ptn.stop-ptn.start
+          ptn.len=ptn.stop-ptn.start+1 -- +1
           table.insert(ptns,ptn)
         end
         if is_start then
@@ -91,21 +87,15 @@ function setup_sequins()
     table.insert(hptns,ptns)
   end
 
-  if hptns[1]~=nil then
-    tab.print(hptns[1])
-  end
-
   -- create sequins from this hptn
   for i=1,6 do
     local seq={}
     for sn=1,32 do
       table.insert(seq,{})
     end
-    for _,p in ipairs(hptns) do
+    for _,p in ipairs(hptns[i]) do
       if p.start~=nil then
-        tab.print(p)
         seq[p.start]=p
-        tab.print(seq[p.start])
       end
     end
     seqs[i]:settable(seq)
@@ -349,9 +339,7 @@ function play(voice,samplei,sn)
   softcut.play(voice,1)
   softcut.loop_start(voice,(sn>0 and pos.start or pos.stop)-0.5)
   softcut.loop_end(voice,(sn>0 and pos.stop or pos.start)+0.5)
-  print(pos.start,pos.stop)
   softcut.position(voice,pos.start)
-
 end
 
 
@@ -363,6 +351,9 @@ function init()
   setup_sequins() -- load the sequins stuff
   setup_clock() -- setup lattice
   print("hello, world")
+  params:set("1_12",22)
+  params:set("1_13",21)
+  params:set("1_16",32)
 end
 
 -- runs after you unload a script
