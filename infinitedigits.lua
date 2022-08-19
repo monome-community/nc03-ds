@@ -29,6 +29,7 @@ function setup_clock()
           end
         end
       end
+      redraw()
     end,
     division=1/16,
   }
@@ -352,11 +353,19 @@ function init()
   setup_clock() -- setup lattice
   print("hello, world")
   params:set("1_12",22)
-  params:set("1_13",21)
+  params:set("1_13",22)
+  params:set("1_1",22)
+  params:set("1_2",21)
+  params:set("1_3",22)
+  params:set("1_4",21)
   params:set("1_16",-32)
   params:set("1_17",-31)
   params:set("1_18",-31)
   params:set("1_19",-31)
+  params:set("1_24",302)
+  params:set("1_25",301)
+  params:set("1_26",301)
+  params:set("1_27",301)
 end
 
 -- runs after you unload a script
@@ -376,7 +385,63 @@ end
 -- cause the screen to draw stuff
 function redraw()
   screen.clear()
-  screen.move(64,32)
-  screen.text_center("nc03")
+
+  local selected=3
+  local current=6
+  local current_width=4
+  local play_pos=8
+  for i=1,6 do
+    local y=24+6*i
+    for j=1,32 do
+      local x=(j-1)*4
+      local level=4
+      screen.level(level)
+      screen.rect(x,y,3,2)
+      screen.fill()
+    end
+    if selected==i then
+      local x=(current-1)*4
+      local z=y+4
+      screen.level(5)
+      screen.line_width(1)
+      screen.move(x,z)
+      screen.line(x+current_width*4-1,z)
+      screen.stroke()
+      z=z-5
+      screen.move(x,z)
+      screen.line(x+current_width*4-1,z)
+      screen.stroke()
+    end
+
+    -- show current
+    local x=(seqs[i].ix-1)*4
+    local z=y+4
+    screen.level(15)
+    screen.line_width(1)
+    screen.move(x,z)
+    screen.line(x+3,z)
+    screen.stroke()
+    z=z-5
+    screen.move(x,z)
+    screen.line(x+3,z)
+    screen.stroke()
+  end
+  
+  local i=1
+  for _, d in ipairs(hptns[i]) do
+      local y=24+6*i
+      local x1=(d.start-1)*4
+      local x2=(d.stop)*4
+      screen.level(10)
+      screen.rect(x1,y,x2-x1-1,2)
+      screen.fill()
+      screen.level(0)
+      screen.pixel(d.direction<0 and x1 or (x2-2),y)
+      screen.pixel(d.direction<0 and x1+1 or (x2-3),y)
+      screen.fill()
+  end
+
+  
+  
   screen.update()
 end
