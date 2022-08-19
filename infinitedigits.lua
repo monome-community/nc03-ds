@@ -353,7 +353,10 @@ function init()
   print("hello, world")
   params:set("1_12",22)
   params:set("1_13",21)
-  params:set("1_16",32)
+  params:set("1_16",-32)
+  params:set("1_17",-31)
+  params:set("1_18",-31)
+  params:set("1_19",-31)
 end
 
 -- runs after you unload a script
