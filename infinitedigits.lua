@@ -10,33 +10,49 @@ lattice=require("lattice")
 
 debounce_sequins=0
 k2on=false
+global_divisions={1/32,1/24,1/16,1/12,1/8,1/6,1/2}
+global_division_options={}
+for _, div in ipairs(global_divisions) do
+  table.insert(global_division_options,"1/"..math.floor(1/div))
+end
+global_beats={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 
 function setup_clock()
   -- use lattice for the clock
   lat=lattice:new()
-  pattern=lat:new_pattern{
-    action=function(v)
-      if k2on then
-        params:delta("sample",1)
-      end
-      if debounce_sequins>0 then
-        debounce_sequins=debounce_sequins-1
-        if debounce_sequins==0 then
-          setup_sequins()
-        end
-      end
-      if seqs~=nil then
-        for i=1,6 do
-          local seq=seqs[i]()
-          if next(seq)~=nil then
-            play(i,seq.sample,seq.len*seq.direction)
+  for divisioni, division in ipairs(global_divisions) do 
+    pattern=lat:new_pattern{
+      action=function(v)
+        global_beats[divisioni]=global_beats[divisioni]+1
+        if division==1/16 then 
+          if k2on then
+            params:delta("sample",1)
+          end
+          if debounce_sequins>0 then
+            debounce_sequins=debounce_sequins-1
+            if debounce_sequins==0 then
+              setup_sequins()
+            end
           end
         end
-      end
-      redraw()
-    end,
-    division=1/16,
-  }
+        if seqs~=nil then
+          for i=1,6 do
+            if divisioni==params:get(i.."division") then 
+              local seq=seqs[i]()
+              if next(seq)~=nil then
+                play(i,seq.sample,seq.len*seq.direction)
+              end
+            end
+          end
+        end
+        if division==1/16 then 
+          redraw()
+        end
+      end,
+      division=division,
+    }
+    
+  end
   lat:start()
 end
 
@@ -112,6 +128,7 @@ function setup_sequins()
       table.insert(load_seq,seq[ii])
     end
     seqs[i]:settable(load_seq)
+    seqs[i].ix=global_beats[params:get(i.."division")]%seqs[i].length+1
   end
 end
 
@@ -154,12 +171,13 @@ function setup_softcut()
     -- set slews
     softcut.pan_slew_time(i,0.01)
     softcut.level_slew_time(i,0.01)
-    softcut.rate_slew_time(i,0.01)
+    softcut.rate_slew_time(i,0.0)
 
     -- for each voice, make a parameter to adjust it
     -- (copy things from sc_params.lua)
-    params:add_group("VOICE "..i,10)
+    params:add_group("VOICE "..i,11)
 
+    params:add_option(i.."division","division",global_division_options,3)
     params:add{
       type="control",
       id=i.."level",
@@ -328,7 +346,7 @@ function setup_samples()
       print("loading",sample.path,"into pos",pos)
       softcut.buffer_read_mono(sample.path,0,pos,-1,1,1,0,1)
       -- save position of the sample
-      samples[i].pos=pos
+      samples[i].pos=pos-0.005
       -- iterate the position by the size of the sample
       -- and the time per sample
       pos=pos+sample.duration+time_per_sample
@@ -350,7 +368,7 @@ function play(voice,samplei,sn)
     pos.stop=pos.start+clock.get_beat_sec()/4*math.abs(sn)
   elseif sn<0 then
     pos.stop=samples[samplei].pos
-    pos.start=pos.stop+clock.get_beat_sec()/4*math.abs(sn)
+    pos.start=pos.stop+clock.get_beat_sec()*math.abs(sn)*4*global_divisions[params:get(voice.."division")]
   else
     -- sn cannot be 0
     do return end
@@ -361,7 +379,9 @@ function play(voice,samplei,sn)
 
   -- setup the loop positions
   print("play",voice,samplei,sn,pos.start,pos.stop)
-  softcut.rate(voice,params:get(voice.."rate")*(sn>0 and 1 or-1))
+  local rate=params:get(voice.."rate")*(sn>0 and 1 or-1)
+  -- rate=rate*global_divisions[params:get(voice.."division")]*16
+  softcut.rate(voice,rate)
   softcut.loop_start(voice,(sn>0 and pos.start-2 or pos.stop))
   softcut.loop_end(voice,(sn>0 and pos.stop or pos.start+2))
   softcut.position(voice,pos.start)
