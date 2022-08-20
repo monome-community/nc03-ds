@@ -9,12 +9,16 @@ s=require("sequins")
 lattice=require("lattice")
 
 debounce_sequins=0
+k2on=false
 
 function setup_clock()
   -- use lattice for the clock
-  local lat=lattice:new()
+  lat=lattice:new()
   pattern=lat:new_pattern{
     action=function(v)
+      if k2on then
+        params:delta("sample",1)
+      end
       if debounce_sequins>0 then
         debounce_sequins=debounce_sequins-1
         if debounce_sequins==0 then
@@ -22,7 +26,7 @@ function setup_clock()
         end
       end
       if seqs~=nil then
-        for i=1,6 do 
+        for i=1,6 do
           local seq=seqs[i]()
           if next(seq)~=nil then
             play(i,seq.sample,seq.len*seq.direction)
@@ -112,7 +116,7 @@ function setup_parameters()
       params:hide(voice.."_"..sn)
       -- set an action to reload pattern into sequins
       params:set_action(voice.."_"..sn,function(x)
-        debounce_sequins=10
+        debounce_sequins=2
       end)
     end
   end
@@ -229,9 +233,15 @@ function setup_softcut()
     }
   end
 
+  params:add_number("selected","selected",1,6,1)
+  params:add_number("beat_start","start",0,33,1)
+  params:add_number("beat_length","beat_length",-32,32,1)
+  params:hide("selected")
+  params:hide("beat_start")
+  params:hide("beat_length")
+
   params:bang()
 end
-
 
 function setup_samples()
   -- clear the buffer
@@ -312,13 +322,14 @@ function setup_samples()
     end
   end
 
+  params:add_number("sample","sample",1,#samples,1,function(param) return samples[param:get()].filename end,true)
+  params:hide("sample")
   -- that's it! all samples are loaded
 end
 
 function play(voice,samplei,sn)
   -- sn: sixteenth notes to PLAY
   -- if negative, start from the start reversed
-  print("play",voice,samplei,sn)
   -- figure out the start+end position
   local pos={start=0,stop=1} -- in seconds
   if sn>0 then
@@ -336,13 +347,13 @@ function play(voice,samplei,sn)
   end
 
   -- setup the loop positions
+  print("play",voice,samplei,sn,pos.start,pos.stop)
   softcut.rate(voice,params:get(voice.."rate")*(sn>0 and 1 or-1))
-  softcut.play(voice,1)
-  softcut.loop_start(voice,(sn>0 and pos.start or pos.stop)-0.5)
-  softcut.loop_end(voice,(sn>0 and pos.stop or pos.start)+0.5)
+  softcut.loop_start(voice,(sn>0 and pos.start-2 or pos.stop))
+  softcut.loop_end(voice,(sn>0 and pos.stop or pos.start+2))
   softcut.position(voice,pos.start)
+  softcut.play(voice,1)
 end
-
 
 -- norns basic functions
 function init()
@@ -352,44 +363,124 @@ function init()
   setup_sequins() -- load the sequins stuff
   setup_clock() -- setup lattice
   print("hello, world")
-  params:set("1_12",22)
-  params:set("1_13",22)
-  params:set("1_1",22)
-  params:set("1_2",21)
-  params:set("1_3",22)
-  params:set("1_4",21)
-  params:set("1_16",-32)
-  params:set("1_17",-31)
-  params:set("1_18",-31)
-  params:set("1_19",-31)
-  params:set("1_24",302)
-  params:set("1_25",301)
-  params:set("1_26",301)
-  params:set("1_27",301)
+
+  softcut.event_phase(function(i,x)
+    if i==1 then
+      print(x)
+    end
+  end)
+  softcut.poll_start_phase()
+  -- params:set("1_12",22)
+  -- params:set("1_13",22)
+  -- params:set("1_1",22)
+  -- params:set("1_2",21)
+  -- params:set("1_3",22)
+  -- params:set("1_4",21)
+  -- params:set("1_16",-32)
+  -- params:set("1_17",-31)
+  -- params:set("1_18",-31)
+  -- params:set("1_19",-31)
+  -- params:set("1_24",302)
+  -- params:set("1_25",301)
+  -- params:set("1_26",301)
+  -- params:set("1_27",301)
+end
+
+function get_selected()
+  local selected=params:get("selected")
+  local current=params:get("beat_start")
+  local current_width=math.abs(params:get("beat_length"))
+  if params:get("beat_length")<0 then
+    current=current-current_width+1
+  end
+  while current<=0 do
+    current=current+1
+    current_width=current_width-1
+  end
+  return selected,current,current_width,math.sign(params:get("beat_length"))
+end
+
+function bind()
+  local selected,current,current_width,direction=get_selected()
+  if current_width==0 then
+    do return end
+  end
+  print(selected,current,current_width,direction)
+  local deleted=false
+  for sn=current,current+current_width-1 do
+    local val=params:get(selected.."_"..sn)
+    if val~=0 then
+      deleted=true
+    end
+    params:set(selected.."_"..sn,0)
+  end
+  if deleted then
+    -- make sure nothing is left behind
+    local last_val=0
+    for sn=1,32 do
+      local val=params:get(selected.."_"..sn)
+      if last_val==0 and math.abs(val)%10==1 then
+        params:set(selected.."_"..sn,val+1*math.sign(val))
+      end
+      last_val=val
+    end
+    do return end
+  end
+  for sn=current,current+current_width-1 do
+    local val=params:get("sample")*10+1
+    if sn==current then
+      val=val+1
+    end
+    params:set(selected.."_"..sn,val*direction)
+  end
 end
 
 -- runs after you unload a script
 function cleanup()
-
 end
 
 -- key function
 function key(k,z)
+  if k==3 and z==1 then
+    bind()
+  elseif k==2 then
+    k2on=z==1
+  end
 
 end
 
 -- encoder function
 function enc(k,d)
+  if k==1 then
 
+  elseif k==2 then
+    params:delta("beat_start",d)
+    if params:get("beat_start")>32 then
+      if params:get("selected")<6 then
+        params:set("beat_start",1)
+        params:delta("selected",1)
+      else
+        params:set("beat_start",32)
+      end
+    elseif params:get("beat_start")<1 then
+      if params:get("selected")>1 then
+        params:set("beat_start",32)
+        params:delta("selected",-1)
+      else
+        params:set("beat_start",1)
+      end
+    end
+  elseif k==3 then
+    params:delta("beat_length",d)
+  end
 end
+
 -- cause the screen to draw stuff
 function redraw()
   screen.clear()
 
-  local selected=3
-  local current=6
-  local current_width=4
-  local play_pos=8
+  local selected,current,current_width=get_selected()
+
   for i=1,6 do
     local y=24+6*i
     for j=1,32 do
@@ -426,9 +517,9 @@ function redraw()
     screen.line(x+3,z)
     screen.stroke()
   end
-  
-  local i=1
-  for _, d in ipairs(hptns[i]) do
+
+  for i=1,6 do
+    for _,d in ipairs(hptns[i]) do
       local y=24+6*i
       local x1=(d.start-1)*4
       local x2=(d.stop)*4
@@ -439,9 +530,13 @@ function redraw()
       screen.pixel(d.direction<0 and x1 or (x2-2),y)
       screen.pixel(d.direction<0 and x1+1 or (x2-3),y)
       screen.fill()
+    end
   end
 
-  
-  
+  -- show the name of the sample
+  screen.level(15)
+  screen.move(64,5)
+  screen.text_center(params:string("sample"))
+
   screen.update()
 end
