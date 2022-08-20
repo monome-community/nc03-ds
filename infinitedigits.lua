@@ -1,4 +1,4 @@
--- nc03-ds
+-- wards
 -- https://github.com/monome-community/nc03-ds
 -- https://llllllll.co/t/57649
 -- construct an evolving expression of
@@ -98,12 +98,20 @@ function setup_sequins()
     for sn=1,32 do
       table.insert(seq,{})
     end
+    local last=1
     for _,p in ipairs(hptns[i]) do
       if p.start~=nil then
         seq[p.start]=p
+        if p.stop>last then
+          last=p.stop
+        end
       end
     end
-    seqs[i]:settable(seq)
+    local load_seq={}
+    for ii=1,last do
+      table.insert(load_seq,seq[ii])
+    end
+    seqs[i]:settable(load_seq)
   end
 end
 
@@ -289,11 +297,16 @@ function setup_samples()
       local ch,len,rate=audio.file_info(path)
       -- get filename
       local pathname,filename,ext=string.match(path,"(.-)([^\\/]-%.?([^%.\\/]*))$")
+      local rendered={}
+      for ii=1,128 do
+        table.insert(rendered,0)
+      end
       table.insert(samples,{
         path=path,
         len=len,
         duration=len/48000,
         filename=filename,
+        rendered=rendered,
       })
     end
 
@@ -304,13 +317,13 @@ function setup_samples()
       total_duration=total_duration+sample.duration
     end
     -- lets figure out the buffer time we have left
-    local time_remaining=softcut.BUFFER_SIZE-total_duration-2
+    local time_remaining=softcut.BUFFER_SIZE-total_duration-6
     -- and now we can proportion time to each sample
     local time_per_sample=time_remaining/#samples
 
     -- lets load in each sample into a position
     -- spaced by the calculated time
-    local pos=1
+    local pos=3
     for i,sample in ipairs(samples) do
       print("loading",sample.path,"into pos",pos)
       softcut.buffer_read_mono(sample.path,0,pos,-1,1,1,0,1)
@@ -355,6 +368,33 @@ function play(voice,samplei,sn)
   softcut.play(voice,1)
 end
 
+-- rendering function
+function setup_renders()
+  -- local samplei=1
+  softcut.event_render(function(ch,start,sec_per_sample,s)
+    local maxval=0
+    for i,v in ipairs(s) do
+      if v>maxval then
+        maxval=math.abs(v)
+      end
+    end
+    for i,v in ipairs(s) do
+      s[i]=s[i]/maxval
+    end
+    print("rendered pos",start)
+    for samplei,_ in ipairs(samples) do
+      if math.abs(samples[samplei].pos-start)<1 then
+        print("rendered",samplei)
+        samples[samplei].rendered=s
+        do return end
+      end
+    end
+  end)
+  for ii=1,#samples do
+    softcut.render_buffer(1,samples[ii].pos,samples[ii].duration,128)
+  end
+end
+
 -- norns basic functions
 function init()
   setup_softcut()
@@ -362,14 +402,15 @@ function init()
   setup_parameters() -- load parameters for patterns
   setup_sequins() -- load the sequins stuff
   setup_clock() -- setup lattice
+  setup_renders()
   print("hello, world")
 
-  softcut.event_phase(function(i,x)
-    if i==1 then
-      print(x)
-    end
-  end)
-  softcut.poll_start_phase()
+  -- softcut.event_phase(function(i,x)
+  --   if i==1 then
+  --     print(x)
+  --   end
+  -- end)
+  -- softcut.poll_start_phase()
   -- params:set("1_12",22)
   -- params:set("1_13",22)
   -- params:set("1_1",22)
@@ -537,6 +578,17 @@ function redraw()
   screen.level(15)
   screen.move(64,5)
   screen.text_center(params:string("sample"))
+
+  if samples~=nil then
+    for i=1,127 do
+      screen.aa(1)
+      screen.level(15)
+      screen.move(i,samples[params:get("sample")].rendered[i]*10+17)
+      screen.line(i+1,samples[params:get("sample")].rendered[i+1]*10+17)
+      screen.stroke()
+      screen.aa(0)
+    end
+  end
 
   screen.update()
 end
