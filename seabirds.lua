@@ -122,13 +122,22 @@ function load_sample(id, file)
 end
 
 
-function play_sample(id, voice, amp, rate)
+function play_sample(id, voice, amp, pan, rate, filter_amt, filter_cutoff)
   if amp == nil then amp = 0.5 end
+  if pan == nil then pan = 0 end
   if rate == nil then rate = 1 end
+  if filter_amt == nil then filter_amt = 0 end
+  if filter_cutoff == nil then filter_cutoff = 4000 end
   local samp = samples[id]
   cut.enable(voice, 1)
   cut.buffer(voice, 1)
+  cut.fade_time(voice, 0.002)
+  cut.post_filter_dry(voice, 1-filter_amt)
+  cut.post_filter_lp(voice, filter_amt)
+  cut.post_filter_fc(voice, filter_cutoff)
+  cut.level_slew_time(voice, 0.001)
   cut.position(voice, samp.start_point)
+  cut.pan(voice, pan)
   cut.rate(voice, rate)
   cut.loop_start(voice, samp.start_point)
   cut.loop_end(voice, samp.end_point)
@@ -148,11 +157,27 @@ function init_samples()
     "07-hh/07-hh_default-2.flac",
     "05-rs/05-rs_default-2.flac",
     "01-bd/01-bd_default-1.flac",
+    "04-cp/04-cp_default-1.flac",
+    "07-hh/07-hh_default-1.flac",
+    "05-rs/05-rs_default-1.flac",
+    "01-bd/01-bd_default-2.flac",
+    "04-cp/04-cp_default-2.flac",
+    "07-hh/07-hh_default-2.flac",
+    "05-rs/05-rs_default-2.flac",
+    "01-bd/01-bd_default-1.flac",
     "02-sd/02-sd_default-1.flac",
     "07-hh/07-hh_default-1.flac",
     "05-rs/05-rs_default-1.flac",
     "01-bd/01-bd_default-2.flac",
     "02-sd/02-sd_default-2.flac",
+    "07-hh/07-hh_default-2.flac",
+    "05-rs/05-rs_default-2.flac",
+    "01-bd/01-bd_default-1.flac",
+    "02-sd/02-sd_default-1.flac",
+    "07-hh/07-hh_default-1.flac",
+    "05-rs/05-rs_default-1.flac",
+    "01-bd/01-bd_default-2.flac",
+    "02-sd/02-sd_verb-long.flac",
     "07-hh/07-hh_default-2.flac",
     "05-rs/05-rs_default-2.flac",
     "01-bd/01-bd_default-1.flac",
@@ -181,27 +206,11 @@ function init_samples()
     "05-rs/05-rs_default-2.flac",
     "01-bd/01-bd_default-1.flac",
     "02-sd/02-sd_default-1.flac",
-    "07-hh/07-hh_default-1.flac",
-    "05-rs/05-rs_default-1.flac",
+    "05-hh/05-rs_default-1.flac",
+    "03-tm/03-tm_verb-short.flac",
     "01-bd/01-bd_default-2.flac",
     "02-sd/02-sd_default-2.flac",
-    "07-hh/07-hh_default-2.flac",
-    "05-rs/05-rs_default-2.flac",
-    "01-bd/01-bd_default-1.flac",
-    "02-sd/02-sd_default-1.flac",
-    "07-hh/07-hh_default-1.flac",
-    "05-rs/05-rs_default-1.flac",
-    "01-bd/01-bd_default-2.flac",
-    "02-sd/02-sd_default-2.flac",
-    "07-hh/07-hh_default-2.flac",
-    "05-rs/05-rs_default-2.flac",
-    "01-bd/01-bd_default-1.flac",
-    "02-sd/02-sd_default-1.flac",
-    "07-hh/07-hh_default-1.flac",
-    "05-rs/05-rs_default-1.flac",
-    "01-bd/01-bd_default-2.flac",
-    "02-sd/02-sd_default-2.flac",
-    "07-hh/07-hh_default-2.flac",
+    "07-hh/07-hh_mods-2.flac",
     "05-rs/05-rs_default-2.flac",    
   }
   for i, name in ipairs(names) do
@@ -229,6 +238,8 @@ for i=1,16,1 do
   
 end
 
+max_water_level = 1.2 + 0.7
+
 function water_level(beat, loc_x, loc_y)
   return (
         0.7*math.sin(16*2*math.pi*(loc_x/SIZE) + 2*math.pi*beat/8) + 
@@ -251,19 +262,38 @@ function advance()
   step = util.wrap(step + 1, 1, 16)
   local heading_64 = 64*heading/(2*math.pi)
   local heading_64_i = math.floor(heading_64)
-  local voices = {heading_64_i-1, heading_64, heading_64+1, heading_64+2}
+  local voices = {heading_64_i-1, heading_64_i, heading_64_i+1, heading_64_i+2}
   local distance = 4
-  for i, x in ipairs(voices) do
-    local side = x - heading_64_i + (heading_64 % 1)
+  local values = {{}, {}, {}, {}}
+  local four_ahead = util.wrap(step+3, 1, 16)
+  for i, v in ipairs(voices) do
+    local side = v - heading_64_i + (heading_64 % 1)
     voices[i] = util.wrap(voices[i], 1, 64)
     local loc_x = x + side*math.sin(heading) + distance*math.cos(heading)
     local loc_y = y + side*math.cos(heading) + distance*math.sin(heading)
-    displacement = water_level(beat, loc_x, loc_y)
+    local displacement = water_level(beat, loc_x, loc_y)
+    values[i].id = util.wrap(v, 1, 64)
+    values[i].post = steps[util.wrap(v, 1, 64)][four_ahead]
+    values[i].pan = util.clamp(side/2, -1, 1)
+    values[i].displacement = displacement
+    values[i].difference = math.max((2*max_water_level*values[i].post-max_water_level) + values[i].displacement, 0)
+    if values[i].post == 0 then
+      values[i].difference = 0
+    end
+    values[i].ratio = values[i].difference/math.max(max_water_level + values[i].displacement, 0.1)
+    -- print(i)
+    -- tab.print(values[i])
   end
-
-  local four_ahead = util.wrap(step+4, 1, 16)
-  local values = {steps[voices[1]][four_ahead], steps[voices[2]][four_ahead], steps[voices[3]][four_ahead], steps[voices[4]][four_ahead]}
-  tab.print(values)
+  -- print(values[1].ratio, values[2].ratio, values[3].ratio, values[4].ratio)
+  for i=1,4,1 do
+    -- print(values[i].id, i, 0.5*values[i].ratio)
+    if values[i].ratio > 0 then
+      local filt = math.max(2-values[i].difference, 0)
+      local cutoff = util.linexp(0, 2, 20000, 500, filt)
+      print("filt", filt, "cutoff", cutoff)
+      play_sample(values[i].id, i, 0.5*values[i].ratio, values[i].pan, 1, 1, cutoff)
+    end
+  end
   -- print(step, "s", steps[1][step], steps[1][util.wrap(step+1, 1, 16)], steps[1][util.wrap(step+2, 1, 16)])  
 end
 
@@ -382,7 +412,7 @@ function redraw()
             screen.line_width(1)
           end
 
-          local postheight = 2*steps[postline][util.wrap(math.floor((2*beat)%16) + 1 + i, 1, 16)] - 1
+          local postheight = 2*max_water_level*steps[postline][util.wrap(math.floor((2*beat)%16) + 1 + i, 1, 16)] - max_water_level
           -- if (beat % 0.5 < 0.1) and i > 3 and i < 8 and j == 15 then
           --   print(i, postline, postheight)
           -- end
@@ -393,10 +423,7 @@ function redraw()
           end
           local loc_x = x + side*math.sin(heading) + distance*math.cos(heading)
           local loc_y = y + side*math.cos(heading) + distance*math.sin(heading)
-          local displacement = (
-            0.7*math.sin(16*2*math.pi*(loc_x/SIZE) + 2*math.pi*beat/8) + 
-            1.2*math.sin(32*2*math.pi*(loc_y/SIZE) - 2*math.pi*beat/8)
-          )
+          local displacement = water_level(beat, loc_x, loc_y)
           local p_d_y = util.linlin(-2, 2, -45, 45, displacement/distance)
           local postheight_d_y = util.linlin(-2, 2, -45, 45, postheight/distance)
           screen.move(px, py + p_d_y)
