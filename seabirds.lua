@@ -16,10 +16,10 @@ local kicks = {
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
   s{1, 0, 0, 0.5, 0.25, 0.75, 0, 0.25},
   s{0.25, 0.75, 0, 0.5, 0.25, 0.75, 0, 0.5}, 
-  s{1, 0, 0.5, 0, 0.75, 0, 0.5, 0, 
-    1, 0, 0.5, 0, 0.75, 0, 0.5, 0, 
-    1, 0, 0.5, 0, 0.75, 0, 0.5, 0, 
-    s{ s{0, 0, 0, 0, 0, 0, 0, 0}:all(), s{1, 0, 0.5, 0, 0.75, 0, 0.5, 0.75}:all()}},
+  s{1, 0, 0.5, 0, 0.75, 0, 
+    1, 0, 0.5, 0, 0.75, 0, 
+    1, 0, 0.5, 0, 0.75, 0, 
+    s{ s{0, 0, 0, 0, 0, 0}:all(), s{1, 0, 0.5, 0, 0.75, 0.75}:all()}},
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
   s{1, 0, 0, 0.5, 0.25, 0.75, 0, 0.25},
   s{0.25, 0.75, 0, 0.5, 0.25, 0.75, 0, 0.5}, 
@@ -44,7 +44,7 @@ local snares = {
   s{0, 0, 0.5, 0.75, 0, 0.5, 1, 0},
   s{0, 0, 0, 0, 1, 0, 0, 0},
   s{0, 0, 1, 0, 0, 0.75, 0, 0.5},
-  s{0, 0, 1, 0, 0, 0, 1, 0},
+  s{0, 0, 1, 0, 1, 0},
   s{0, 0, 0.5, 0.75, 0, 0.5, 1, 0},
   s{0, 0, 0, 0, 1, 0, 0, 0},
   s{0, 0, 1, 0, 0, 0.75, 0, 0.5},
@@ -83,7 +83,7 @@ local other = {
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
   s{0, 0, 0, 0, 0, 0, 0, 0.75},
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
-  s{0, 0, 0, 0, 0, 0, 0, 0.75},
+  s{1, 0, 0, 0, 0, 0.75},
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
   s{0, 0, 0, 0, 0, 0, 0, 0.75},
   s{1, 0, 0.25, 1, 0, 0.5, 1, 0.75},
@@ -121,6 +121,40 @@ function load_sample(id, file)
   end
 end
 
+
+function play_pad(id, voice, amp, rate, dur)
+  if amp == nil then amp = 0.5 end
+  if rate == nil then rate = 1 end
+  if filter_amt == nil then filter_amt = 0 end
+  if filter_cutoff == nil then filter_cutoff = 4000 end
+  local samp = samples[id]
+  cut.enable(voice, 1)
+  cut.buffer(voice, 1)
+  cut.fade_time(voice, 0.2)
+  local start_beats = clock.get_beats()
+  clock.run(function()
+    while(clock.get_beats() - start_beats < dur) do
+      local progress = (clock.get_beats() - start_beats)/dur
+      cut.post_filter_dry(voice, 0)
+      cut.post_filter_lp(voice, 1)
+      cut.post_filter_fc(voice, util.linexp(-1, 1, 1000, 3000, math.sin(2*math.pi*clock.get_beats()%1)))
+      cut.level_slew_time(voice, 0.1)
+      local randval = math.random()
+      local leng = samp.end_point - samp.start_point
+      randval = 0.3*randval + 0.05
+      local randpos = samp.start_point + randval*leng
+      cut.position(voice, randpos)
+      cut.pan(voice, math.random() - 0.5)
+      cut.rate(voice, rate)
+      cut.loop_start(voice, samp.start_point)
+      cut.loop_end(voice, samp.end_point)
+      cut.level(voice, amp*math.sin(math.pi*progress))
+      cut.loop(voice, 0)
+      cut.play(voice, 1)
+      clock.sleep(0.1 + 0.2 * math.random())
+    end
+  end)
+end
 
 function play_sample(id, voice, amp, pan, rate, filter_amt, filter_cutoff)
   if amp == nil then amp = 0.5 end
@@ -168,7 +202,7 @@ function init_samples()
     "02-sd/02-sd_default-1.flac",
     "07-hh/07-hh_default-1.flac",
     "05-rs/05-rs_default-1.flac",
-    "01-bd/01-bd_default-2.flac",
+    "03-tm/03-tm_default-2.flac",
     "02-sd/02-sd_default-2.flac",
     "07-hh/07-hh_default-2.flac",
     "05-rs/05-rs_default-2.flac",
@@ -177,15 +211,7 @@ function init_samples()
     "07-hh/07-hh_default-1.flac",
     "05-rs/05-rs_default-1.flac",
     "01-bd/01-bd_default-2.flac",
-    "02-sd/02-sd_verb-long.flac",
-    "07-hh/07-hh_default-2.flac",
-    "05-rs/05-rs_default-2.flac",
-    "01-bd/01-bd_default-1.flac",
-    "02-sd/02-sd_default-1.flac",
-    "07-hh/07-hh_default-1.flac",
-    "05-rs/05-rs_default-1.flac",
-    "01-bd/01-bd_default-2.flac",
-    "02-sd/02-sd_default-2.flac",
+    "04-cp/04-cp_verb-short.flac",
     "07-hh/07-hh_default-2.flac",
     "05-rs/05-rs_default-2.flac",
     "01-bd/01-bd_default-1.flac",
@@ -206,12 +232,21 @@ function init_samples()
     "05-rs/05-rs_default-2.flac",
     "01-bd/01-bd_default-1.flac",
     "02-sd/02-sd_default-1.flac",
-    "05-hh/05-rs_default-1.flac",
+    "07-hh/07-hh_mods-2.flac",
+    "05-rs/05-rs_verb-short.flac",
+    "01-bd/01-bd_verb-long.flac",
+    "02-sd/02-sd_default-2.flac",
+    "07-hh/07-hh_default-2.flac",
+    "05-rs/05-rs_default-2.flac",
+    "01-bd/01-bd_default-1.flac",
+    "02-sd/02-sd_default-1.flac",
+    "05-rs/05-rs_default-1.flac",
     "03-tm/03-tm_verb-short.flac",
     "01-bd/01-bd_default-2.flac",
     "02-sd/02-sd_default-2.flac",
-    "07-hh/07-hh_mods-2.flac",
-    "05-rs/05-rs_default-2.flac",    
+    "07-hh/07-hh_default-1.flac",
+    "05-rs/05-rs_default-2.flac",
+    "07-hh/07-hh_verb-long.flac",
   }
   for i, name in ipairs(names) do
     local f = _path.audio .. "nc03-ds/"..name
@@ -290,7 +325,7 @@ function advance()
     if values[i].ratio > 0 then
       local filt = math.max(2-values[i].difference, 0)
       local cutoff = util.linexp(0, 2, 20000, 500, filt)
-      print("filt", filt, "cutoff", cutoff)
+      -- print("filt", filt, "cutoff", cutoff)
       play_sample(values[i].id, i, 0.5*values[i].ratio, values[i].pan, 1, 1, cutoff)
     end
   end
