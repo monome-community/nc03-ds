@@ -1,4 +1,21 @@
--- seabirds
+-- seabird
+-- @sixolet
+-- 
+-- All is sea, and regular 
+-- patterns of pylons.
+-- You are bird.
+-- Fly over pylons and
+-- imagine music.
+-- 
+-- E1 volume: sea level
+-- E2 cadence: wave speed
+-- E3 horizon: bank your wings
+-- K1 stability: mod key for Es
+-- K2 relax
+-- K3 bind
+--
+-- Known bug: tempo may not be the same on exit.
+
 local lattice = require('lattice')
 local lfos = require('lfo')
 local s = require('sequins')
