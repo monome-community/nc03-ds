@@ -401,7 +401,6 @@ function init()
   function clock_param:bang()
     self.action(self:get())
   end
-  old_tempo = params:get("clock_tempo")
   params:add_binary("relax", "relax", "momentary", 0)
   params:add_binary("bind", "bind", "momentary", 0)
   params:add_control("volume", "volume", controlspec.new(-2, 2, 'lin', 0, 0))
@@ -643,4 +642,5 @@ end
 
 function cleanup()
   clock_param.get = old_clock_get
+  clock_param:set(clock_param.value)
 end
