@@ -7,6 +7,7 @@
 
 s=require("sequins")
 lattice=require("lattice")
+_lfos = require 'lfo'
 
 debounce_sequins=0
 k2on=false
@@ -193,7 +194,7 @@ function setup_softcut()
       name="pan",
       controlspec=controlspec.new(0,2.5,'lin',0.01,1,0.01/2.5),
       -- formatter=frm.bipolar_as_pan_widget,
-      action=function(x) softcut.level(i,x) end,
+      action=function(x) softcut.pan(i,x) end,
     }
 
     params:add{
@@ -204,7 +205,6 @@ function setup_softcut()
       action=function(x)
         local rev=params:get(i.."reverse")==0 and 1 or-1
         local rate=params:get(i.."rate")*rev
-        print("rate",i,rate)
         softcut.rate(i,rate)
       end
     }
@@ -217,7 +217,6 @@ function setup_softcut()
       action=function(x)
         local rev=params:get(i.."reverse")==0 and 1 or-1
         local rate=params:get(i.."rate")*rev
-        print("rate",i,rate)
         softcut.rate(i,rate)
       end
     }
@@ -232,7 +231,7 @@ function setup_softcut()
         type="control",
         id=v.id.."_"..i,
         name=v.name.." ["..i.."]",
-        controlspec=controlspec.new(0,1,'lin',0.01,v.name=="dry" and 1 or 0,nil,nil,nil),
+        controlspec=controlspec.new(0,1,'lin',0.01,v.name=="lowpass" and 1 or 0,nil,nil,nil),
         formatter=function(param) return(util.round(param:get()*100,1).."%") end,
         action=function(x) softcut[v.id](i,x) end
       }
@@ -258,7 +257,51 @@ function setup_softcut()
       end
     }
   end
-
+  
+  
+  -- IMPORTANT! set your LFO's 'min' and 'max' *before* adding params, so they can scale appropriately:
+  for i=1,6 do 
+    local lfo=_lfos:add{min = 200, max = 3000, period=math.random(8,32),action=function(scaled,raw)
+      params:set("post_filter_fc_"..i,scaled)
+      end
+    }
+    lfo:start()
+    local lfodiv=_lfos:add{min =1, max = 5, period=math.random(8,32),action=function(scaled,raw)
+      params:set(i.."division",scaled)
+      end
+    }
+    lfodiv:start()
+    local lforate=_lfos:add{min =0.5, max = 1, period=math.random(12,64),action=function(scaled,raw)
+      params:set(i.."rate",scaled)
+      end
+    }
+    lforate:start()
+    local lfolevel=_lfos:add{min =0.0, max = 0.5, period=math.random(12,64),action=function(scaled,raw)
+      params:set(i.."level",scaled)
+      end
+    }
+    lfolevel:start()
+    local lfopan=_lfos:add{min =-1.0, max = 1.0, period=math.random(12,80),action=function(scaled,raw)
+      params:set(i.."pan",scaled)
+      end
+    }
+    lfopan:start()
+  end
+  local lfo=_lfos:add{min = clock.get_tempo()-10, max = clock.get_tempo()+10, period=math.random(8,32),action=function(scaled,raw)
+    params:set("clock_tempo",scaled)
+    end
+  }
+  lfo:start()
+  -- local bpm_lfo = _lfos:add{min = clock.get_tempo()-10, max = clock.get_tempo()+10, period=math.random(6,16)}
+  -- local num_lfos = 2
+  -- -- 14 parameters for LFOs + 1 separator for each:
+  -- params:add_group('LFOs',num_lfos*15)
+  -- -- now we can add our params
+  -- cutoff_lfo:add_params('cutoff_lfo', 'cutoff')
+  -- cutoff_lfo:set('action', function(scaled, raw) engine.cutoff(scaled) screen_dirty = true end)
+    
+  
+  
   params:add_number("selected","selected",1,6,1)
   params:add_number("beat_start","start",0,33,1)
   params:add_number("beat_length","beat_length",-32,32,1)
@@ -305,7 +348,9 @@ function setup_samples()
       local path=folder.."/"..filename
       -- check if its an audio file
       if string.match(ext,"wav") or string.match(ext,"flac") or string.match(ext,"aiff") then
-        table.insert(clean_wavs,path)
+        if string.find(filename,"long") or string.find(filename,"bd_default") then
+          table.insert(clean_wavs,path)
+        end
       end
     end
 
@@ -378,7 +423,7 @@ function play(voice,samplei,sn)
   end
 
   -- setup the loop positions
-  print("play",voice,samplei,sn,pos.start,pos.stop)
+  -- print("play",voice,samplei,sn,pos.start,pos.stop)
   local rate=params:get(voice.."rate")*(sn>0 and 1 or-1)
   -- rate=rate*global_divisions[params:get(voice.."division")]*16
   softcut.rate(voice,rate)
@@ -424,6 +469,8 @@ function init()
   setup_clock() -- setup lattice
   setup_renders()
   print("hello, world")
+
+    params:set("clock_tempo",120)
 
   -- softcut.event_phase(function(i,x)
   --   if i==1 then
@@ -506,6 +553,14 @@ function key(k,z)
     bind()
   elseif k==2 then
     k2on=z==1
+    elseif k==1 then 
+    for i=1,10 do
+      params:set("sample",math.random(1,8))
+      params:set("selected",math.random(1,6))
+      params:set("beat_start",math.random(1,7)*4)
+      params:set("beat_length",math.random(2,8)*(math.random()>0.5 and 1 or -1))
+      bind()
+    end
   end
 
 end
