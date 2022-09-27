@@ -231,7 +231,7 @@ function setup_softcut()
         type="control",
         id=v.id.."_"..i,
         name=v.name.." ["..i.."]",
-        controlspec=controlspec.new(0,1,'lin',0.01,v.name=="lowpass" and 1 or 0,nil,nil,nil),
+        controlspec=controlspec.new(0,1,'lin',0.01,v.name=="bandpass" and 1 or 0,nil,nil,nil),
         formatter=function(param) return(util.round(param:get()*100,1).."%") end,
         action=function(x) softcut[v.id](i,x) end
       }
@@ -261,22 +261,32 @@ function setup_softcut()
   
   -- IMPORTANT! set your LFO's 'min' and 'max' *before* adding params, so they can scale appropriately:
   for i=1,6 do 
-    local lfo=_lfos:add{min = 200, max = 3000, period=math.random(8,32),action=function(scaled,raw)
+    local lfo=_lfos:add{min = 300, max = 3000, period=math.random(9,32),action=function(scaled,raw)
       params:set("post_filter_fc_"..i,scaled)
       end
     }
     lfo:start()
-    local lfodiv=_lfos:add{min =1, max = 5, period=math.random(8,32),action=function(scaled,raw)
-      params:set(i.."division",scaled)
+    local lowpasslfo=_lfos:add{min = 0.1, max = 1, period=math.random(8,32),action=function(scaled,raw)
+      params:set("post_filter_lp_"..i,scaled)
       end
     }
-    lfodiv:start()
+    lowpasslfo:start()
+    local bpasslfo=_lfos:add{min = 0.1, max = 1, period=math.random(8,32),action=function(scaled,raw)
+      params:set("post_filter_bp_"..i,scaled)
+      end
+    }
+    bpasslfo:start()
+    -- local lfodiv=_lfos:add{min =1, max = 5, period=math.random(8,32),action=function(scaled,raw)
+    --   params:set(i.."division",scaled)
+    --   end
+    -- }
+    -- lfodiv:start()
     local lforate=_lfos:add{min =0.5, max = 1, period=math.random(12,64),action=function(scaled,raw)
       params:set(i.."rate",scaled)
       end
     }
     lforate:start()
-    local lfolevel=_lfos:add{min =0.0, max = 0.5, period=math.random(12,64),action=function(scaled,raw)
+    local lfolevel=_lfos:add{min = 0.2, max = 0.5, period=math.random(12,32),action=function(scaled,raw)
       params:set(i.."level",scaled)
       end
     }
@@ -423,28 +433,34 @@ end
 
 -- rendering function
 function setup_renders()
+  os.execute("mkdir -p ".._path.data.."nc03-ds/infinitedigits")
   -- local samplei=1
-  softcut.event_render(function(ch,start,sec_per_sample,s)
+  softcut.event_render(function(ch,start,sec_per_sample,ss)
     local maxval=0
-    for i,v in ipairs(s) do
+    for i,v in ipairs(ss) do
       if v>maxval then
         maxval=math.abs(v)
       end
     end
-    for i,v in ipairs(s) do
-      s[i]=s[i]/maxval
+    for i,v in ipairs(ss) do
+      ss[i]=ss[i]/maxval
     end
     print("rendered pos",start)
     for samplei,_ in ipairs(samples) do
       if math.abs(samples[samplei].pos-start)<1 then
         print("rendered",samplei)
-        samples[samplei].rendered=s
+        tab.save(ss,_path.data.."nc03-ds/infinitedigits/"..samplei..".dat")
+        samples[samplei].rendered=ss
         do return end
       end
     end
   end)
   for ii=1,#samples do
-    softcut.render_buffer(1,samples[ii].pos,samples[ii].duration,128)
+    if util.file_exists(_path.data.."nc03-ds/infinitedigits/"..ii..".dat") then
+      samples[ii].rendered=tab.load(_path.data.."nc03-ds/infinitedigits/"..ii..".dat")
+    else
+      softcut.render_buffer(1,samples[ii].pos,samples[ii].duration,128)
+    end
   end
 end
 
@@ -502,6 +518,9 @@ function bind()
   print(selected,current,current_width,direction)
   local deleted=false
   for sn=current,current+current_width-1 do
+    if sn>32 then 
+      do return end 
+    end
     local val=params:get(selected.."_"..sn)
     if val~=0 then
       deleted=true
@@ -539,12 +558,12 @@ function key(k,z)
     bind()
   elseif k==2 then
     k2on=z==1
-    elseif k==1 then 
+    elseif k==1 and z==1 then 
     for i=1,10 do
+      params:set("selected",math.random(2,6))
       params:set("sample",math.random(1,#samples))
-      params:set("selected",math.random(1,6))
-      params:set("beat_start",math.random(1,7)*4)
-      params:set("beat_length",math.random(2,8)*(math.random()>0.5 and 1 or -1))
+      params:set("beat_start",math.random(1,14)*2)
+      params:set("beat_length",math.random(2,8)*(math.random()>0.25 and 1 or -1))
       bind()
     end
   end
