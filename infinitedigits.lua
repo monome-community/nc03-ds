@@ -287,19 +287,7 @@ function setup_softcut()
     }
     lfopan:start()
   end
-  local lfo=_lfos:add{min = clock.get_tempo()-10, max = clock.get_tempo()+10, period=math.random(8,32),action=function(scaled,raw)
-    params:set("clock_tempo",scaled)
-    end
-  }
-  lfo:start()
-  -- local bpm_lfo = _lfos:add{min = clock.get_tempo()-10, max = clock.get_tempo()+10, period=math.random(6,16)}
-  -- local num_lfos = 2
-  -- -- 14 parameters for LFOs + 1 separator for each:
-  -- params:add_group('LFOs',num_lfos*15)
-  -- -- now we can add our params
-  -- cutoff_lfo:add_params('cutoff_lfo', 'cutoff')
-  -- cutoff_lfo:set('action', function(scaled, raw) engine.cutoff(scaled) screen_dirty = true end)
-    
+
   
   
   params:add_number("selected","selected",1,6,1)
@@ -348,9 +336,9 @@ function setup_samples()
       local path=folder.."/"..filename
       -- check if its an audio file
       if string.match(ext,"wav") or string.match(ext,"flac") or string.match(ext,"aiff") then
-        if string.find(filename,"long") or string.find(filename,"bd_default") then
+        -- if string.find(filename,"long") or string.find(filename,"bd_default") then
           table.insert(clean_wavs,path)
-        end
+        -- end
       end
     end
 
@@ -470,8 +458,6 @@ function init()
   setup_renders()
   print("hello, world")
 
-    params:set("clock_tempo",120)
-
   -- softcut.event_phase(function(i,x)
   --   if i==1 then
   --     print(x)
@@ -555,7 +541,7 @@ function key(k,z)
     k2on=z==1
     elseif k==1 then 
     for i=1,10 do
-      params:set("sample",math.random(1,8))
+      params:set("sample",math.random(1,#samples))
       params:set("selected",math.random(1,6))
       params:set("beat_start",math.random(1,7)*4)
       params:set("beat_length",math.random(2,8)*(math.random()>0.5 and 1 or -1))
@@ -568,7 +554,7 @@ end
 -- encoder function
 function enc(k,d)
   if k==1 then
-
+    params:delta("clock_tempo",d)
   elseif k==2 then
     params:delta("beat_start",d)
     if params:get("beat_start")>32 then
