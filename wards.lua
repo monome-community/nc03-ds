@@ -1,9 +1,12 @@
 -- wards
--- https://github.com/monome-community/nc03-ds
--- https://llllllll.co/t/57649
--- construct an evolving expression of
--- rhythmic time using provided synth drum
--- samples, the new lfo library, and sequins.
+-- @infinitedigits
+-- 
+-- E1 volume: less is less
+-- E2 cadence: beat length
+-- E3 horizon: track
+-- K1 stability: create 
+-- K2 relax
+-- K3 bind
 
 s=require("sequins")
 lattice=require("lattice")
@@ -261,7 +264,7 @@ function setup_softcut()
   
   -- IMPORTANT! set your LFO's 'min' and 'max' *before* adding params, so they can scale appropriately:
   for i=1,6 do 
-    local lfo=_lfos:add{min = 300, max = 3000, period=math.random(9,32),action=function(scaled,raw)
+    local lfo=_lfos:add{min = 400, max = 4000, period=math.random(9,32),action=function(scaled,raw)
       params:set("post_filter_fc_"..i,scaled)
       end
     }
@@ -271,17 +274,7 @@ function setup_softcut()
       end
     }
     lowpasslfo:start()
-    local bpasslfo=_lfos:add{min = 0.1, max = 1, period=math.random(8,32),action=function(scaled,raw)
-      params:set("post_filter_bp_"..i,scaled)
-      end
-    }
-    bpasslfo:start()
-    -- local lfodiv=_lfos:add{min =1, max = 5, period=math.random(8,32),action=function(scaled,raw)
-    --   params:set(i.."division",scaled)
-    --   end
-    -- }
-    -- lfodiv:start()
-    local lforate=_lfos:add{min =0.5, max = 1, period=math.random(12,64),action=function(scaled,raw)
+    local lforate=_lfos:add{min =0.5, max = 1.5, period=math.random(12,64),action=function(scaled,raw)
       params:set(i.."rate",scaled)
       end
     }
