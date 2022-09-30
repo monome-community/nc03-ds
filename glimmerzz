@@ -2,6 +2,13 @@
 -- zzsnzmn
 -- skeletons
 
+-- k3 start/stop
+-- encoders move things around
+-- k2 randomizes things
+-- high return settings on reverb recomended
+-- also mess with the compressor it's fun
+-- v--
+
 lfo = require 'lfo' -- assign the library to a general variable
 s = require 'sequins'
 
