@@ -175,14 +175,14 @@ function enc(n,d)
   if n == 1 then
     params:delta('softcut_level', d)
   elseif n == 2 then
+    -- todo:  adjust step_length_sequence_index
+  elseif n == 3 then
     for k,v in pairs(lfos) do
       for i = 1,#lfos[k] do
         lfos[k][i]:set('mode', 'free')
         lfos[k][i]:set('period', math.max(lfos[k][i]:get('period') - d, 0.02))
       end
     end
-  elseif n == 3 then
-    --queued_seq = util.clamp(queued_seq+d, 1, #trigger_seqs)
   end
   screen_dirty = true
 end
@@ -205,10 +205,10 @@ function update_sounds()
     end
     params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
     params:set("reverse_1", 0)
-    params:set("reverse_2", math.random(10) > 4 and 1 or 0)
+    params:set("reverse_2", math.random(10) > 6 and 1 or 0)
     params:set("reverse_3", 0)
     params:set("reverse_4", 0)
-    params:set("reverse_5", math.random(10) > 6 and 1 or 0)
+    params:set("reverse_5", math.random(10) > 5 and 1 or 0)
     params:set("reverse_6", math.random(10) > 7 and 1 or 0)
   end
 end
