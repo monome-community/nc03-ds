@@ -196,7 +196,7 @@ function enc(n,d)
     for k,v in pairs(lfos) do
       for i = 1,#lfos[k] do
         local l = lfos[k][i]
-        adjust_lfo_period_preserving_phase(l, math.max(l:get('period') - d, 0.02))
+        adjust_lfo_period_preserving_phase(l, math.max(l:get('period') * (1 - d/40), 0.02))
         --lfos[k][i]:set('mode', 'free')
         --lfos[k][i]:set('period', math.max(lfos[k][i]:get('period') - d, 0.02))
       end
@@ -352,8 +352,6 @@ function redraw()
   --screen.move(128,n*10)
   --screen.text_right(coords[n].x.. " "..coords[n].y)
   --end
-  
-  
   
   if params:get("show_info") == 1 then
     local carets = ""
