@@ -171,6 +171,22 @@ function randomize_lfos()
   end
 end
 
+function adjust_lfo_period_preserving_phase(l, new_period)
+  local new_phase_counter = l.phase_counter + (1/l.ppqn)
+  local new_phase
+  if l.mode == "clocked" then
+    new_phase = new_phase_counter / l.period
+  else
+    new_phase = new_phase_counter * clock.get_beat_sec() / l.period
+  end
+  
+  local adjusted_phase_counter = (new_phase * new_period / clock.get_beat_sec()) - 1/l.ppqn
+  
+  l:set('mode', 'free')
+  l:set('period', new_period)
+  l.phase_counter = adjusted_phase_counter
+end
+
 function enc(n,d)
   if n == 1 then
     params:delta('softcut_level', d)
@@ -179,8 +195,10 @@ function enc(n,d)
   elseif n == 3 then
     for k,v in pairs(lfos) do
       for i = 1,#lfos[k] do
-        lfos[k][i]:set('mode', 'free')
-        lfos[k][i]:set('period', math.max(lfos[k][i]:get('period') - d, 0.02))
+        local l = lfos[k][i]
+        adjust_lfo_period_preserving_phase(l, math.max(l:get('period') - d, 0.02))
+        --lfos[k][i]:set('mode', 'free')
+        --lfos[k][i]:set('period', math.max(lfos[k][i]:get('period') - d, 0.02))
       end
     end
   end
