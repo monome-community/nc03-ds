@@ -92,6 +92,38 @@ function init()
   params:add{type = "option", id = "show_lfos", name = "show lfos", options = {"yes", "no"}, default = 1 }
   params:add{type = "option", id = "show_info", name = "show text info", options = {"yes", "no"}, default = 1 }
   
+  default_alt_prob = {0,0,0,0,30,100}
+  default_reverse_prob = {0,40,0,0,50,30}
+
+  for i = 1,6 do
+    params:add{type = "number", id = "voice "..i.." alt prob", name = "alt file probability ["..i.."]", default = default_alt_prob[i], 
+      min = 0, max = 100, formatter = function(param) return(param:get().."%") end }
+    params:add{type = "number", id = "voice "..i.." reverse prob", name = "reverse probability ["..i.."]", default = default_reverse_prob[i],
+      min = 0, max = 100, formatter = function(param) return(param:get().."%") end }
+    params:add_file("voice "..i.." alt sample", "alt sample", _path.audio)
+
+    params:set_action("voice "..i.." sample",
+      function(file)
+        if file ~= _path.audio and play_level < 3 then
+          sc_helpers.file_callback(file,i)
+        elseif file == _path.audio then
+        end
+      end
+    )
+    params:set_action("voice "..i.." alt sample",
+      function(file)
+        if file ~= _path.audio and play_level >= 3 then
+          sc_helpers.file_callback(file,i)
+        elseif file == _path.audio then
+        end
+      end
+    )
+
+    insert_param_into_group("voice "..i.." alt sample", "voice_"..i, 4)
+    insert_param_into_group("voice "..i.." alt prob", "voice_"..i, 6)
+    insert_param_into_group("voice "..i.." reverse prob", "voice_"..i, 7)
+  end
+
   lfos = {x = {}, y = {}, pan = {}, post_filter_fc = {}}
  
   for i = 1,5 do
@@ -146,6 +178,13 @@ function init()
   params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
   params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
 
+  params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
+  params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-1.flac")
+  params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
+  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+  params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
+  params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+
   randomize_lfos()
 
   screen_dirty = true
@@ -171,22 +210,6 @@ function randomize_lfos()
   end
 end
 
-function adjust_lfo_period_preserving_phase(l, new_period)
-  local new_phase_counter = l.phase_counter + (1/l.ppqn)
-  local new_phase
-  if l.mode == "clocked" then
-    new_phase = new_phase_counter / l.period
-  else
-    new_phase = new_phase_counter * clock.get_beat_sec() / l.period
-  end
-  
-  local adjusted_phase_counter = (new_phase * new_period / clock.get_beat_sec()) - 1/l.ppqn
-  
-  l:set('mode', 'free')
-  l:set('period', new_period)
-  l.phase_counter = adjusted_phase_counter
-end
-
 function enc(n,d)
   if n == 1 then
     params:delta('softcut_level', d)
@@ -207,27 +230,19 @@ end
 
 function update_sounds()
   if play_level <= 2 then
-    params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-    params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-    params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-    params:set("reverse_1", 0)
-    params:set("reverse_2", 0)
-    params:set("reverse_3", 0)
-    params:set("reverse_4", 0)
-    params:set("reverse_5", 0)
-    params:set("reverse_6", 0)
-  elseif play_level == 3 then
-    params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-    if math.random(3) > 2 then
-      params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
+    for i = 1,6 do
+      sc_helpers.file_callback(params:get("voice "..i.." sample"), i)
+      params:set("reverse_"..i, 0)
     end
-    params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
-    params:set("reverse_1", 0)
-    params:set("reverse_2", math.random(10) > 6 and 1 or 0)
-    params:set("reverse_3", 0)
-    params:set("reverse_4", 0)
-    params:set("reverse_5", math.random(10) > 5 and 1 or 0)
-    params:set("reverse_6", math.random(10) > 7 and 1 or 0)
+  elseif play_level == 3 then
+    for i = 1,6 do
+      if math.random(100) < params:get("voice "..i.." alt prob") then
+        sc_helpers.file_callback(params:get("voice "..i.." alt sample"), i)
+      end
+      if math.random(100) < params:get("voice "..i.." reverse prob") then
+        params:set("reverse_"..i, 1)
+      end
+    end
   end
 end
 
@@ -403,4 +418,51 @@ end
 
 function cleanup()
   params:set('softcut_level', pre_script_level)
+end
+
+--- utility functions not core to script behavior below
+
+-- change the period of an lfo object without discontinuities in phase
+function adjust_lfo_period_preserving_phase(l, new_period)
+  local new_phase_counter = l.phase_counter + (1/l.ppqn)
+  local new_phase
+  if l.mode == "clocked" then
+    new_phase = new_phase_counter / l.period
+  else
+    new_phase = new_phase_counter * clock.get_beat_sec() / l.period
+  end
+
+  local adjusted_phase_counter = (new_phase * new_period / clock.get_beat_sec()) - 1/l.ppqn
+
+  l:set('mode', 'free')
+  l:set('period', new_period)
+  l.phase_counter = adjusted_phase_counter
+end
+
+-- move a parameter not in a group inside the group
+function insert_param_into_group(param_id, group_id, insert_position)
+  local group_index = params.lookup[group_id]
+  local group = params.params[group_index]
+  local original_index = params.lookup[param_id]
+  local new_index = group_index + insert_position
+
+  -- move the param
+  local p = table.remove(params.params, original_index)
+  table.insert(params.params, new_index, p)
+
+  -- increase the group size
+  group.n = group.n + 1
+
+  -- fix up the indices in params.lookup
+  for k, v in pairs(params.lookup) do
+    if v >= new_index and v < original_index then
+      params.lookup[k] = v + 1
+    end
+  end
+
+  -- fix up the params.hidden table
+  table.insert(params.hidden, new_index, table.remove(params.hidden, original_index))
+
+  params.lookup[param_id] = new_index
+
 end
