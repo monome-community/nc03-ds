@@ -19,7 +19,7 @@ sc_helpers = include 'lib/sc_helpers'
 
 local pre_script_level = params:get('softcut_level')
 
-local territory = {
+territory = {
   {1, 6, 4, 5},
   {3, 7, 5, 1},
   {5, 4, 3, 7},
@@ -32,19 +32,37 @@ sequences = {
   s{1,0,1,0,0,0,0,0,1,1,0,0},
   s{0,1,0,s{1,1,1,0}},
   s{0,s{1,0,0,1}},
-  s{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  s{0,0,0,0,0,0,0,1},
   s{s{0, 1, 1}, 0, s{1, 1, 0}, 0}
 }
 
 strum_sequence_a = s{0.036, 0.016, 0.036, 0.025, 0.025, 0.036, s{0, 0, 0, 0.025, 0.016}}
 strum_sequence_b = s{0.025, 0.016, 0, 0.016, 0.016, 0.025, 0, s{0, 0, 0.016, 0.036}}
 
-step_length_sequence = {
-  s{1/4, 1/4, 1/4, s{1/4, 1/4, 1/4, s{1/8, 1/8}:all(), 1/4, 1/4, 1/4, s{1/16, 3/16}:all()}},
-  s{1/8, 1/8, 1/4},
+step_length_sequences = {
+  {
+    s{1/2},
+    s{1/4},
+    s{1/4},
+    s{1/4, 1/4, 1/4, 1/8, 1/8},
+    s{1/4, 1/4, 1/4, 1/8, 1/8},
+    s{1/8},
+    s{1/8},
+    s{1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/16, 1/16},
+  },
+  {
+    s{1, 1, 1, 1/2, 1/2},
+    s{1, 1/2, 1/2, 1, 1/4, 1/4, 1/4, 1/4},
+    s{1/2, 1/4, s{1/2, 1/4, s{1/8, 1/8}:all(), 1/2, 1/4, s{1/16, 3/16}:all()}},
+    s{1/4, 1/4, 1/4, s{1/4, 1/4, 1/4, s{1/8, 1/8}:all(), 1/4, 1/4, 1/4, s{1/16, 3/16}:all()}},
+    s{1/4, 1/4, 1/4, s{1/4, 1/4, 1/4, s{1/8, 1/8}:all(), 1/4, 1/4, 1/4, s{1/16, 3/16}:all()}},
+    s{1/4, 1/4, 1/4, s{1/4, 1/4, 1/4, s{1/8, 1/8}:all(), 1/4, 1/4, 1/4, s{1/16, 3/16}:all()}},
+    s{1/2, 1/8, 1/8, s{1/4, s{1/8, 1/8}:all(), 1/4, s{1/8, 1/8}:all(), 1/4, s{1/8, 1/8}:all(), 1/4, s{1/16, 3/16}:all()}},
+    s{1/2, 1/8, 1/8, s{1/4, s{1/8, 1/8}:all(), 1/4, s{1/8, 1/8}:all(), 1/4, s{1/8, 1/8}:all(), 1/4, s{1/16, 3/16}:all()}},
+    s{1/16},
+  }
 }
 
-step_length_sequence_index = 1
 play_level = 0
 
 local scale_names = {}
@@ -89,6 +107,8 @@ function init()
   params:add{type = "number", id = "root_note", name = "root note",
     min = 0, max = 127, default = 57, formatter = function(param) return musicutil.note_num_to_name(param:get(), true) end,
   }
+  
+  params:add{type = "number", id = "cadence", name = "cadence", min = 1, max = 8, default = 3}
   
   params:add{type = "option", id = "show_lfos", name = "show lfos", options = {"yes", "no"}, default = 1 }
   params:add{type = "option", id = "show_info", name = "show text info", options = {"yes", "no"}, default = 1 }
@@ -171,12 +191,14 @@ function init_lfos()
       ppqn = 16,
       action = function(scaled,raw)
         coords[i].x = math.ceil(raw*4)
+        screen_dirty = true
       end
     }
     lfos.y[i] = lfo:add{
       ppqn = 16,
       action = function(scaled,raw)
         coords[i].y = math.ceil(raw*4)
+        screen_dirty = true
       end
     }
     
@@ -187,7 +209,7 @@ function init_lfos()
         local scaled_min = 0 - lfos.pan[i].depth
         local scaled_max = 0 + lfos.pan[i].depth
         raw = util.linlin(0,1,scaled_min, scaled_max, raw)
-        params:set('pan_'..i,raw)
+        params:set("pan_"..i,raw)
       end
     }
   end
@@ -202,10 +224,10 @@ function init_lfos()
         local scaled_min = 8000 - centroid
         local scaled_max = 8000 + centroid
         raw = util.linlin(0,1,scaled_min, scaled_max, raw)
-        params:set('post_filter_fc_'..i, raw)
+        params:set("post_filter_fc_"..i, raw)
         if (i == 4) then
-          params:set('post_filter_fc_'..i+1, raw)
-          params:set('post_filter_fc_'..i+2, raw)
+          params:set("post_filter_fc_"..i+1, raw)
+          params:set("post_filter_fc_"..i+2, raw)
         end
       end
     }
@@ -220,10 +242,10 @@ end
 function randomize_lfos()
   for k,v in pairs(lfos) do
     for i = 1,#lfos[k] do
-      lfos[k][i]:set('depth', math.random(100)/100)
-      local shapes = {'sine','saw'}
-      lfos[k][i]:set('shape', shapes[math.random(#shapes)])
-      lfos[k][i]:set('period', math.random(i == 5 and 24 or 64))
+      lfos[k][i]:set("depth", math.random(100)/100)
+      local shapes = {"sine","saw"}
+      lfos[k][i]:set("shape", shapes[math.random(#shapes)])
+      lfos[k][i]:set("period", math.random(i == 5 and 24 or 64))
       lfos[k][i]:start()
     end
   end
@@ -231,16 +253,14 @@ end
 
 function enc(n,d)
   if n == 1 then
-    params:delta('softcut_level', d)
+    params:delta("softcut_level", d)
   elseif n == 2 then
-    -- todo:  adjust step_length_sequence_index
+    params:delta("cadence", d)
   elseif n == 3 then
     for k,v in pairs(lfos) do
       for i = 1,#lfos[k] do
         local l = lfos[k][i]
         adjust_lfo_period_preserving_phase(l, math.max(l:get('period') * (1 - d/40), 0.02))
-        --lfos[k][i]:set('mode', 'free')
-        --lfos[k][i]:set('period', math.max(lfos[k][i]:get('period') - d, 0.02))
       end
     end
   end
@@ -305,7 +325,7 @@ function play()
   drum_seq_clock = clock.run(
     function()
       while true do
-        clock.sync(1/4)
+        clock.sync(step_length_sequences[1][params:get("cadence")]())
         
         if sounds_dirty then
           update_sounds()
@@ -335,7 +355,7 @@ function play()
   chord_seq_clock = clock.run(
     function()
       while true do
-        clock.sync(step_length_sequence[step_length_sequence_index]())
+        clock.sync(step_length_sequences[2][params:get("cadence")]())
         
         if sounds_dirty then
           update_sounds()
@@ -376,12 +396,11 @@ end
 function stop()
   if drum_seq_clock then
     clock.cancel(drum_seq_clock)
-    drum_seq_active = false
   end
   if chord_seq_clock then
     clock.cancel(chord_seq_clock)
-    chord_seq_active = false
   end
+  seq_active = false
   clear_hits(1)
   clear_hits(2)
   screen_dirty = true
@@ -390,6 +409,12 @@ end
 function reset_indices()
   for i = 1,#sequences do
     sequences[i]:reset()
+  end
+  for i = 1,#strum_sequence_a do
+    strum_sequence_a[i]:reset()
+  end
+  for i = 1,#strum_sequence_b do
+    strum_sequence_b[i]:reset()
   end
   screen_dirty = true
 end
