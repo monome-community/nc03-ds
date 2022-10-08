@@ -7,7 +7,43 @@
 -- E2 cadence  .....  K2 relax
 -- E3 horizon  ......  K3 bind
 -- 
-
+--
+-- voices 1-3 are percussive,
+-- voices 4-6 are pitched.
+--
+-- bind to increase level of play,
+-- relax to decrease.
+--
+-- max play level can change the
+-- samples to their alternate
+-- selections, see params.
+--
+-- lfos survey territory, each 
+-- cell specifies both a sequins 
+-- sequence for rhythms and a 
+-- chord degree for voices 4-6.
+-- 
+-- cadence affects the step
+-- length for all voices, but
+-- it affects percussive and
+-- pitched voices differently.
+--
+-- horizon unlocks lfos from 
+-- their initial clocked state, 
+-- and smoothly increases or
+-- decreases their period.
+--
+-- hold stability and turn E1
+-- to return lfos to a randomly 
+-- clocked state.
+--
+-- while holding stability,
+-- you can also turn E2 or
+-- E3 to scramble the sample 
+-- buffers for voices 1-3 or 
+-- 4-6, respectively.
+--
+-- hold K1+K3 to undo chops.
 
 s = require 'sequins'
 lfo = require 'lfo' 
@@ -157,7 +193,8 @@ function init()
 
   for j = 1,4 do
     for i = 1,4 do
-      params:add{type = "number", id = "territory "..i..","..j, name = "territory "..i..","..j, default = territory[j][i], 
+      params:add{type = "number", id = "territory "..i..","..j, name = "territory "..i..","..j, 
+        min = 1, max = 7, default = territory[j][i], 
         action = function(val)
           territory[j][i] = val
         end
@@ -263,20 +300,41 @@ end
 
 function enc(n,d)
   if n == 1 then
-    params:delta("softcut_level", d)
+    if randomizing then
+      randomize_lfos()
+    else
+      params:delta("softcut_level", d)
+    end
   elseif n == 2 then
-    params:delta("cadence", d)
-    cadence_changed = true
-    cadence_metro:start(3, 1)
+    if randomizing then
+      random_chop(math.random(1,3), 0.05, 128)
+    else
+      params:delta("cadence", d)
+      cadence_changed = true
+      cadence_metro:start(3, 1)
+    end
   elseif n == 3 then
-    for k,v in pairs(lfos) do
-      for i = 1,#lfos[k] do
-        local l = lfos[k][i]
-        adjust_lfo_period_preserving_phase(l, math.max(l:get('period') * (1 - d/40), 0.02))
+    if randomizing then
+      random_chop(math.random(4,6), 0, 32)
+    else
+      for k,v in pairs(lfos) do
+        for i = 1,#lfos[k] do
+          local l = lfos[k][i]
+          adjust_lfo_period_preserving_phase(l, math.max(l:get('period') * (1 - d/40), 0.02))
+        end
       end
     end
   end
   screen_dirty = true
+end
+
+function random_chop(voice, attack_protect, min_chop_beat)
+  local p1 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
+  local p2 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
+  local min_chop = clock.get_beat_sec() * min_chop_beat
+  local dur = math.max(math.random() * (samples[voice].end_point - samples[voice].start_point), min_chop)
+  local preserve = math.random() * 0.35
+  softcut.buffer_copy_mono(softcut_buffers[voice], softcut_buffers[voice], p1, p2, math.min(dur, samples[voice].end_point - p2), 0.001, preserve, 0) 
 end
 
 function update_sounds()
@@ -301,23 +359,47 @@ end
 
 function key(n,z)
   if n == 3 and z == 1 then
-    play_level = math.min(play_level + 1, 3)
-    if play_level > 0 and not seq_active then play() end
-    sounds_dirty = true
+    if randomizing then
+      clear_chops()
+    else
+      play_level = math.min(play_level + 1, 3)
+      if play_level > 0 and not seq_active then play() end
+      if play_level == 3 then 
+        sounds_dirty = true
+      end
+    end
   elseif n == 2 and z == 1 then
     play_level = math.max(play_level - 1, 0)
     if play_level == 0 and seq_active then stop() end
     sounds_dirty = true
+    if play_level == 2 then
+      sounds_dirty = true
+    end
     if play_level < 2 then current_chord_name = "" end
   elseif n == 1 then
     if z == 1 then
-      randomize_lfos()
       randomizing = true
     else
       randomizing = false
     end
   end
   screen_dirty = true
+end
+
+function clear_chops()
+  if play_level <= 2 then
+    for i = 1,6 do
+      params:lookup_param("voice "..i.." sample"):bang()
+    end
+  elseif play_level == 3 then
+    for i = 1,6 do
+      if math.random(100) < params:get("voice "..i.." alt prob") then
+        params:lookup_param("voice "..i.." alt sample"):bang()
+      else
+        params:lookup_param("voice "..i.." sample"):bang()
+      end
+    end
+  end
 end
 
 function clear_hits(bank)
