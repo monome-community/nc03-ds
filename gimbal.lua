@@ -83,8 +83,6 @@ function init()
     table.insert(scale_names, string.lower(musicutil.SCALE_CHORD_DEGREES[i].name))
   end
   
-  sc_params.init()
-  
   params:add{type = "option", id = "scale_mode", name = "scale mode",
     options = scale_names, default = 2,
   }
@@ -94,6 +92,8 @@ function init()
   
   params:add{type = "option", id = "show_lfos", name = "show lfos", options = {"yes", "no"}, default = 1 }
   params:add{type = "option", id = "show_info", name = "show text info", options = {"yes", "no"}, default = 1 }
+  
+  sc_params.init()
   
   default_alt_prob = {0,0,0,0,30,100}
   default_reverse_prob = {0,40,0,0,50,30}
@@ -126,7 +126,44 @@ function init()
     insert_param_into_group("voice "..i.." alt prob", "voice_"..i, 6)
     insert_param_into_group("voice "..i.." reverse prob", "voice_"..i, 7)
   end
+  
+  params:add_separator("TERRITORY")
 
+  for j = 1,4 do
+    for i = 1,4 do
+      params:add{type = "number", id = "territory "..i..","..j, name = "territory "..i..","..j, default = territory[j][i], 
+        action = function(val)
+          territory[j][i] = val
+        end
+      }
+    end
+  end
+
+  params:set("voice 1 sample",_path.audio.."nc03-ds/01-bd/01-bd_default-1.flac")
+  params:set("voice 2 sample",_path.audio.."nc03-ds/04-cp/04-cp_default-2.flac")
+  params:set("voice 3 sample",_path.audio.."nc03-ds/07-hh/07-hh_default-1.flac")
+  params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
+  params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
+  params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
+
+  params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
+  params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-1.flac")
+  params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
+  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+  params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
+  params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+
+  init_lfos()
+  randomize_lfos()
+
+  screen_dirty = true
+  screen_redraw = metro.init(draw_screen, 1/15, -1)
+  screen_redraw:start()
+  
+end
+
+function init_lfos()
+  
   lfos = {x = {}, y = {}, pan = {}, post_filter_fc = {}}
  
   for i = 1,5 do
@@ -173,27 +210,6 @@ function init()
       end
     }
   end
-
-  params:set("voice 1 sample",_path.audio.."nc03-ds/01-bd/01-bd_default-1.flac")
-  params:set("voice 2 sample",_path.audio.."nc03-ds/04-cp/04-cp_default-2.flac")
-  params:set("voice 3 sample",_path.audio.."nc03-ds/07-hh/07-hh_default-1.flac")
-  params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-  params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-  params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-
-  params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
-  params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-1.flac")
-  params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
-  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
-  params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
-  params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
-
-  randomize_lfos()
-
-  screen_dirty = true
-  screen_redraw = metro.init(draw_screen, 1/15, -1)
-  screen_redraw:start()
-  
 end
 
 function get_pin_location(n)
