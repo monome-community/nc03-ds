@@ -43,7 +43,10 @@
 -- buffers for voices 1-3 or 
 -- 4-6, respectively.
 --
--- hold K1+K3 to undo chops.
+-- hold K1+K2 to undo chops
+-- for voices 1-3, and K1+K3
+-- to undo chops for voices
+-- 4-6.
 
 s = require 'sequins'
 lfo = require 'lfo' 
@@ -332,8 +335,8 @@ function random_chop(voice, attack_protect, min_chop_beat)
   local p1 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
   local p2 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
   local min_chop = clock.get_beat_sec() * min_chop_beat
-  local dur = math.max(math.random() * (samples[voice].end_point - samples[voice].start_point), min_chop)
-  local preserve = math.random() * 0.35
+  local dur = math.min(math.max(math.random() * (samples[voice].end_point - samples[voice].start_point), min_chop), min_chop * 4)
+  local preserve = math.random() * 0.45 + 0.12
   softcut.buffer_copy_mono(softcut_buffers[voice], softcut_buffers[voice], p1, p2, math.min(dur, samples[voice].end_point - p2), 0.001, preserve, 0) 
 end
 
@@ -360,7 +363,7 @@ end
 function key(n,z)
   if n == 3 and z == 1 then
     if randomizing then
-      clear_chops()
+      clear_chops(4, 6)
     else
       play_level = math.min(play_level + 1, 3)
       if play_level > 0 and not seq_active then play() end
@@ -369,13 +372,17 @@ function key(n,z)
       end
     end
   elseif n == 2 and z == 1 then
-    play_level = math.max(play_level - 1, 0)
-    if play_level == 0 and seq_active then stop() end
-    sounds_dirty = true
-    if play_level == 2 then
+    if randomizing then
+      clear_chops(1, 3)
+    else
+      play_level = math.max(play_level - 1, 0)
+      if play_level == 0 and seq_active then stop() end
       sounds_dirty = true
+      if play_level == 2 then
+        sounds_dirty = true
+      end
+      if play_level < 2 then current_chord_name = "" end
     end
-    if play_level < 2 then current_chord_name = "" end
   elseif n == 1 then
     if z == 1 then
       randomizing = true
@@ -386,9 +393,9 @@ function key(n,z)
   screen_dirty = true
 end
 
-function clear_chops()
+function clear_chops(start_voice, end_voice)
   if play_level <= 2 then
-    for i = 1,6 do
+    for i = start_voice, end_voice do
       params:lookup_param("voice "..i.." sample"):bang()
     end
   elseif play_level == 3 then
@@ -580,15 +587,18 @@ function redraw()
   end
   
   if params:get("show_lfos") == 1 then
-    for n = 1, 5 do
-      if (n == 4 or n == 5) and play_level < 2 then
-        break
-      end
+    -- draw symbol backgrounds
+    for n = 1, play_level < 2 and 3 or 5 do
       local x = 42 + lfos.x[n].raw * 46 - 1
       local y = 10 + lfos.y[n].raw * 46 - 1
       screen.rect(x - 1, y - 1, 3, 3)
       screen.level(n == 5 and 2 or 0)
       screen.fill()
+    end
+    -- draw symbol foregrounds, in reverse order
+    for n = play_level < 2 and 3 or 5, 1, -1 do
+      local x = 42 + lfos.x[n].raw * 46 - 1
+      local y = 10 + lfos.y[n].raw * 46 - 1
       if n ~= 4 then
         screen.pixel(x, y)
         screen.level(n == 5 and 0 or 3 + n * 2)
