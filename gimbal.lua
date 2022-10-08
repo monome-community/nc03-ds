@@ -64,6 +64,8 @@ step_length_sequences = {
 }
 
 play_level = 0
+cadence_changed = false
+cadence_metro = metro.init(function() cadence_changed = false end, 3, 1)
 
 local scale_names = {}
 local current_chord_name = ""
@@ -112,6 +114,7 @@ function init()
   
   params:add{type = "option", id = "show_lfos", name = "show lfos", options = {"yes", "no"}, default = 1 }
   params:add{type = "option", id = "show_info", name = "show text info", options = {"yes", "no"}, default = 1 }
+  params:add{type = "option", id = "show_territory", name = "show territory", options = {"yes", "no"}, default = 2 }
   
   sc_params.init()
   
@@ -256,6 +259,8 @@ function enc(n,d)
     params:delta("softcut_level", d)
   elseif n == 2 then
     params:delta("cadence", d)
+    cadence_changed = true
+    cadence_metro:start(3, 1)
   elseif n == 3 then
     for k,v in pairs(lfos) do
       for i = 1,#lfos[k] do
@@ -430,11 +435,6 @@ function redraw()
   screen.clear()
   screen.level(5)
   
-  --for n = 1, 5 do
-  --screen.move(128,n*10)
-  --screen.text_right(coords[n].x.. " "..coords[n].y)
-  --end
-  
   if params:get("show_info") == 1 then
     local carets = ""
     for i = 1, play_level do
@@ -445,6 +445,10 @@ function redraw()
     if play_level >= 2 then
       screen.move(0,60)
       screen.text(current_chord_name)
+    end
+    screen.move(128,10)
+    if cadence_changed then
+      screen.text_right("c "..params:get("cadence"))
     end
   end
   
@@ -465,13 +469,26 @@ function redraw()
     end
   end
   
+  if params:get("show_territory") == 1 then
+    screen.level(1)
+    for j = 1, 4 do
+      for i = 1, 4 do
+        local t = territory[j][i]
+        local offset = screen.text_extents(tostring(t))/2
+        if offset == 2 then offset = 3 end
+        screen.move(46 + (i - 1) * 12 + offset, 17 + (j - 1) * 12)
+        screen.text_right(t)
+      end
+    end
+  end
+  
   if params:get("show_lfos") == 1 then
     for n = 1, 5 do
       if (n == 4 or n == 5) and play_level < 2 then
         break
       end
-      local x = 42 + lfos.x[n].raw * 46
-      local y = 10 + lfos.y[n].raw * 46
+      local x = 42 + lfos.x[n].raw * 46 - 1
+      local y = 10 + lfos.y[n].raw * 46 - 1
       screen.rect(x - 1, y - 1, 3, 3)
       screen.level(n == 5 and 2 or 0)
       screen.fill()
