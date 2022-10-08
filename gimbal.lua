@@ -67,8 +67,6 @@ territory = {
 
 coords = {{x = 1, y = 1}, {x = 3, y = 3}, {x = 2, y = 3}, {x = 4, y = 3}, {x = 1, y = 3}}
 
-play_level = 0
-
 sequences = {
   s{1,0,0,1,0},
   s{1,0,1,s{0,0,1,1,0,0,1}},
@@ -106,14 +104,12 @@ cadence_sequences = {
   }
 }
 
--- pitch of 06-cb_default-1.flac is roughly D#5
-base_note = 87
-
 local cadence_changed = false
 local cadence_metro = metro.init(function() cadence_changed = false end, 3, 1)
 
 local scale_names = {}
 local current_chord_name = ""
+local previous_level = 0
 
 local hits = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -142,8 +138,30 @@ function init_params()
   params:add{type = "number", id = "root_note", name = "root note",
     min = 0, max = 127, default = 57, formatter = function(param) return musicutil.note_num_to_name(param:get(), true) end,
   }
-  
+
+  -- pitch of 06-cb_default-1.flac is roughly D#5
+  params:add{type = "number", id = "sample_base_note", name = "pitched sample base note",
+    min = 0, max = 127, default = 87, formatter = function(param) return musicutil.note_num_to_name(param:get(), true) end,
+  }
+
   params:add{type = "number", id = "cadence", name = "cadence", min = 1, max = 8, default = 3}
+  params:add{type = "number", id = "play_level", name = "play level", min = 0, max = 3, default = 0, 
+    action = function(v)
+      if v > 0 and not seq_active then 
+        play() 
+      elseif v == 0 and seq_active then
+        stop()
+      end
+      if (v == 3 and previous_level == 2) or (v == 2 and previous_level == 3) then 
+        sounds_dirty = true
+      end
+      if v < 2 then
+        current_chord_name = ""
+      end
+      previous_level = v
+    end
+  }
+  
   params:add{type = "number", id = "alt sample stickiness", name = "alt sample stickiness", min = 0, max = 100, default = 20,
     formatter = function(param) return(param:get().."%") end
   }
@@ -154,7 +172,7 @@ function init_params()
   
   sc_params.init()
   
-  default_alt_prob = {2,75,2,5,30,100}
+  default_alt_prob = {2,75,2,15,30,100}
   default_reverse_prob = {2,20,2,5,50,20}
 
   for i = 1,6 do
@@ -166,7 +184,7 @@ function init_params()
 
     params:set_action("voice "..i.." sample",
       function(file)
-        if file ~= _path.audio and play_level < 3 then
+        if file ~= _path.audio and params:get("play_level") < 3 then
           sc_helpers.file_callback(file,i)
         elseif file == _path.audio then
         end
@@ -174,7 +192,7 @@ function init_params()
     )
     params:set_action("voice "..i.." alt sample",
       function(file)
-        if file ~= _path.audio and play_level >= 3 then
+        if file ~= _path.audio and params:get("play_level") >= 3 then
           sc_helpers.file_callback(file,i)
         elseif file == _path.audio then
         end
@@ -202,7 +220,7 @@ function init_params()
   params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
   params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-2.flac")
   params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
-  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fltr-amod-eq.flac")
   params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
   params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
 
@@ -300,23 +318,14 @@ function key(n,z)
     if randomizing then
       clear_chops(4, 6)
     else
-      play_level = math.min(play_level + 1, 3)
-      if play_level > 0 and not seq_active then play() end
-      if play_level == 3 then 
-        sounds_dirty = true
-      end
+      params:delta("play_level", 1)
+      
     end
   elseif n == 2 and z == 1 then
     if randomizing then
       clear_chops(1, 3)
     else
-      play_level = math.max(play_level - 1, 0)
-      if play_level == 0 and seq_active then stop() end
-      sounds_dirty = true
-      if play_level == 2 then
-        sounds_dirty = true
-      end
-      if play_level < 2 then current_chord_name = "" end
+      params:delta("play_level", -1)
     end
   elseif n == 1 then
     if z == 1 then
@@ -379,7 +388,7 @@ function play()
         local seq_num = get_lfo_location(lfo_index)
         local val = sequences[seq_num]()
           
-        if play_level >= 2 and val == 1 then
+        if params:get("play_level") >= 2 and val == 1 then
           register_hit(2, coords[lfo_index])
           update_pitches()
   
@@ -452,19 +461,19 @@ function update_pitches()
       -- random octave shift
       chord[index] = chord[index] - 12
     end
-    params:set('semitone_offset_'..voice, chord[index] - base_note)
+    params:set('semitone_offset_'..voice, chord[index] - params:get("sample_base_note"))
   end
 end
 
 function update_sounds()
-  if play_level <= 2 then
+  if params:get("play_level") <= 2 then
     for i = 1,6 do
       if math.random(100) > params:get("alt sample stickiness") then
         params:lookup_param("voice "..i.." sample"):bang()
       end
       params:set("reverse_"..i, 0)
     end
-  elseif play_level == 3 then
+  elseif params:get("play_level") == 3 then
     for i = 1,6 do
       if math.random(100) < params:get("voice "..i.." alt prob") then
         params:lookup_param("voice "..i.." alt sample"):bang()
@@ -486,11 +495,11 @@ function random_chop(voice, attack_protect, min_chop_beat)
 end
 
 function clear_chops(start_voice, end_voice)
-  if play_level <= 2 then
+  if params:get("play_level") <= 2 then
     for i = start_voice, end_voice do
       params:lookup_param("voice "..i.." sample"):bang()
     end
-  elseif play_level == 3 then
+  elseif params:get("play_level") == 3 then
     for i = 1,6 do
       if math.random(100) < params:get("voice "..i.." alt prob") then
         params:lookup_param("voice "..i.." alt sample"):bang()
@@ -545,12 +554,12 @@ function redraw()
   
   if params:get("show_info") == 1 then
     local carets = ""
-    for i = 1, play_level do
+    for i = 1, params:get("play_level") do
       carets = carets..">"
     end
     screen.move(128,60)
     screen.text_right(carets)
-    if play_level >= 2 then
+    if params:get("play_level") >= 2 then
       screen.move(0,60)
       screen.text(current_chord_name)
     end
@@ -592,7 +601,7 @@ function redraw()
   
   if params:get("show_lfos") == 1 then
     -- draw symbol backgrounds
-    for n = 1, play_level < 2 and 3 or 5 do
+    for n = 1, params:get("play_level") < 2 and 3 or 5 do
       local x = 42 + lfos.x[n].raw * 46 - 1
       local y = 10 + lfos.y[n].raw * 46 - 1
       screen.rect(x - 1, y - 1, 3, 3)
@@ -600,7 +609,7 @@ function redraw()
       screen.fill()
     end
     -- draw symbol foregrounds, in reverse order
-    for n = play_level < 2 and 3 or 5, 1, -1 do
+    for n = params:get("play_level") < 2 and 3 or 5, 1, -1 do
       local x = 42 + lfos.x[n].raw * 46 - 1
       local y = 10 + lfos.y[n].raw * 46 - 1
       if n ~= 4 then
