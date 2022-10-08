@@ -111,6 +111,9 @@ function init()
   }
   
   params:add{type = "number", id = "cadence", name = "cadence", min = 1, max = 8, default = 3}
+  params:add{type = "number", id = "alt sample stickiness", name = "alt sample stickiness", min = 0, max = 100, default = 20,
+    formatter = function(param) return(param:get().."%") end
+  }
   
   params:add{type = "option", id = "show_lfos", name = "show lfos", options = {"yes", "no"}, default = 1 }
   params:add{type = "option", id = "show_info", name = "show text info", options = {"yes", "no"}, default = 1 }
@@ -279,7 +282,9 @@ end
 function update_sounds()
   if play_level <= 2 then
     for i = 1,6 do
-      params:lookup_param("voice "..i.." sample"):bang()
+      if math.random(100) > params:get("alt sample stickiness") then
+        params:lookup_param("voice "..i.." sample"):bang()
+      end
       params:set("reverse_"..i, 0)
     end
   elseif play_level == 3 then
