@@ -65,6 +65,10 @@ territory = {
   {4, 3, 6, 1}
 }
 
+coords = {{x = 1, y = 1}, {x = 3, y = 3}, {x = 2, y = 3}, {x = 4, y = 3}, {x = 1, y = 3}}
+
+play_level = 0
+
 sequences = {
   s{1,0,0,1,0},
   s{1,0,1,s{0,0,1,1,0,0,1}},
@@ -102,9 +106,11 @@ cadence_sequences = {
   }
 }
 
-play_level = 0
-cadence_changed = false
-cadence_metro = metro.init(function() cadence_changed = false end, 3, 1)
+-- pitch of 06-cb_default-1.flac is roughly D#5
+base_note = 87
+
+local cadence_changed = false
+local cadence_metro = metro.init(function() cadence_changed = false end, 3, 1)
 
 local scale_names = {}
 local current_chord_name = ""
@@ -114,30 +120,18 @@ local hits = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 }
 
-coords = {{x = 1, y = 1}, {x = 3, y = 3}, {x = 2, y = 3}, {x = 4, y = 3}, {x = 1, y = 3}}
+function init()
+  init_params()
+  init_lfos()
+  randomize_lfos()
 
--- pitch of 06-cb_default-1.flac is roughly D#5
-base_note = 87
-
-function update_pitches()
-  local degree = territory[coords[5].y][coords[5].x]
-  
-  local chord = musicutil.generate_chord_scale_degree(params:get("root_note"), params:get("scale_mode"), degree, false)
-  current_chord_name = musicutil.SCALE_CHORD_DEGREES[params:get("scale_mode")]['chords'][degree]
-
-  for i = 1,3 do
-    local index = i
-    if math.random(3) > 2 then
-      index = 3 - i + 1
-    end
-    if math.random(10) > 9 then
-      chord[index] = chord[index] - 12
-    end
-    params:set('semitone_offset_'..3+i, chord[index] - base_note)
-  end
+  screen_dirty = true
+  screen_redraw = metro.init(draw_screen, 1/15, -1)
+  screen_redraw:start()
 end
 
-function init()
+
+function init_params()
   for i = 1, #musicutil.SCALE_CHORD_DEGREES do
     table.insert(scale_names, string.lower(musicutil.SCALE_CHORD_DEGREES[i].name))
   end
@@ -218,19 +212,9 @@ function init()
   params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
   params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
   params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
-
-
-  init_lfos()
-  randomize_lfos()
-
-  screen_dirty = true
-  screen_redraw = metro.init(draw_screen, 1/15, -1)
-  screen_redraw:start()
-  
 end
 
 function init_lfos()
-  
   lfos = {x = {}, y = {}, pan = {}, post_filter_fc = {}}
  
   for i = 1,5 do
@@ -281,26 +265,6 @@ function init_lfos()
   end
 end
 
-function get_pin_location(n)
-  local c = coords[n]
-  local x = util.clamp(c.x, 1, 4)
-  local y = util.clamp(c.y, 1, 4)
-  return util.clamp(territory[y][x], 1, 7)
-end
-
-function randomize_lfos()
-  for k,v in pairs(lfos) do
-    for i = 1,#lfos[k] do
-      lfos[k][i]:set("depth", math.random(100)/100)
-      local shapes = {"sine","saw"}
-      lfos[k][i]:set("shape", shapes[math.random(#shapes)])
-      lfos[k][i]:set("mode", "clocked")
-      lfos[k][i]:set("period", i == 5 and math.random(24) or 2 * 2 ^ math.ceil(math.random(6)))
-      lfos[k][i]:start()
-    end
-  end
-end
-
 function enc(n,d)
   if n == 1 then
     if randomizing then
@@ -329,35 +293,6 @@ function enc(n,d)
     end
   end
   screen_dirty = true
-end
-
-function random_chop(voice, attack_protect, min_chop_beat)
-  local p1 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
-  local p2 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
-  local min_chop = clock.get_beat_sec() * min_chop_beat
-  local dur = math.min(math.max(math.random() * (samples[voice].end_point - samples[voice].start_point), min_chop), min_chop * 4)
-  local preserve = math.random() * 0.45 + 0.12
-  softcut.buffer_copy_mono(softcut_buffers[voice], softcut_buffers[voice], p1, p2, math.min(dur, samples[voice].end_point - p2), 0.001, preserve, 0) 
-end
-
-function update_sounds()
-  if play_level <= 2 then
-    for i = 1,6 do
-      if math.random(100) > params:get("alt sample stickiness") then
-        params:lookup_param("voice "..i.." sample"):bang()
-      end
-      params:set("reverse_"..i, 0)
-    end
-  elseif play_level == 3 then
-    for i = 1,6 do
-      if math.random(100) < params:get("voice "..i.." alt prob") then
-        params:lookup_param("voice "..i.." alt sample"):bang()
-      end
-      if math.random(100) < params:get("voice "..i.." reverse prob") then
-        params:set("reverse_"..i, 1)
-      end
-    end
-  end
 end
 
 function key(n,z)
@@ -393,34 +328,6 @@ function key(n,z)
   screen_dirty = true
 end
 
-function clear_chops(start_voice, end_voice)
-  if play_level <= 2 then
-    for i = start_voice, end_voice do
-      params:lookup_param("voice "..i.." sample"):bang()
-    end
-  elseif play_level == 3 then
-    for i = 1,6 do
-      if math.random(100) < params:get("voice "..i.." alt prob") then
-        params:lookup_param("voice "..i.." alt sample"):bang()
-      else
-        params:lookup_param("voice "..i.." sample"):bang()
-      end
-    end
-  end
-end
-
-function clear_hits(bank)
-  for i = 1,16 do
-    hits[bank][i] = 0
-  end
-end
-
-function register_hit(bank, c)
-  local addr = c.x + (c.y - 1)*4
-  hits[bank][addr] = hits[bank][addr] + 1
-  screen_dirty = true
-end
-
 function play()
   stop()
   reset_indices()
@@ -439,7 +346,7 @@ function play()
         screen_dirty = true
         
         for i = 1,3 do
-          local seq_num = get_pin_location(i)
+          local seq_num = get_lfo_location(i)
           local val = sequences[seq_num]()
           
           if val == 1 then
@@ -468,12 +375,12 @@ function play()
         clear_hits(2)
         screen_dirty = true
         
-        local pin_index = 4
-        local seq_num = get_pin_location(pin_index)
+        local lfo_index = 4
+        local seq_num = get_lfo_location(lfo_index)
         local val = sequences[seq_num]()
           
         if play_level >= 2 and val == 1 then
-          register_hit(2, coords[pin_index])
+          register_hit(2, coords[lfo_index])
           update_pitches()
   
           sc_helpers.play_slice(4,4)
@@ -507,6 +414,103 @@ function stop()
   clear_hits(1)
   clear_hits(2)
   screen_dirty = true
+end
+
+function get_lfo_location(n)
+  local c = coords[n]
+  local x = util.clamp(c.x, 1, 4)
+  local y = util.clamp(c.y, 1, 4)
+  return util.clamp(territory[y][x], 1, 7)
+end
+
+function randomize_lfos()
+  for k,v in pairs(lfos) do
+    for i = 1,#lfos[k] do
+      lfos[k][i]:set("depth", math.random(100)/100)
+      local shapes = {"sine","saw"}
+      lfos[k][i]:set("shape", shapes[math.random(#shapes)])
+      lfos[k][i]:set("mode", "clocked")
+      lfos[k][i]:set("period", i == 5 and math.random(24) or 2 * 2 ^ math.ceil(math.random(6)))
+      lfos[k][i]:start()
+    end
+  end
+end
+
+function update_pitches()
+  local degree = territory[coords[5].y][coords[5].x]
+  
+  local chord = musicutil.generate_chord_scale_degree(params:get("root_note"), params:get("scale_mode"), degree, false)
+  current_chord_name = musicutil.SCALE_CHORD_DEGREES[params:get("scale_mode")]['chords'][degree]
+
+  for voice = 4,6 do
+    local index = voice - 3
+    if math.random(3) > 2 then
+      -- reverse order
+      index = 3 - index + 1
+    end
+    if math.random(10) > 9 then
+      -- random octave shift
+      chord[index] = chord[index] - 12
+    end
+    params:set('semitone_offset_'..voice, chord[index] - base_note)
+  end
+end
+
+function update_sounds()
+  if play_level <= 2 then
+    for i = 1,6 do
+      if math.random(100) > params:get("alt sample stickiness") then
+        params:lookup_param("voice "..i.." sample"):bang()
+      end
+      params:set("reverse_"..i, 0)
+    end
+  elseif play_level == 3 then
+    for i = 1,6 do
+      if math.random(100) < params:get("voice "..i.." alt prob") then
+        params:lookup_param("voice "..i.." alt sample"):bang()
+      end
+      if math.random(100) < params:get("voice "..i.." reverse prob") then
+        params:set("reverse_"..i, 1)
+      end
+    end
+  end
+end
+
+function random_chop(voice, attack_protect, min_chop_beat)
+  local p1 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
+  local p2 = math.max(attack_protect, math.random()) * (samples[voice].end_point - samples[voice].start_point) + samples[voice].start_point
+  local min_chop = clock.get_beat_sec() * min_chop_beat
+  local dur = math.min(math.max(math.random() * (samples[voice].end_point - samples[voice].start_point), min_chop), min_chop * 4)
+  local preserve = math.random() * 0.45 + 0.12
+  softcut.buffer_copy_mono(softcut_buffers[voice], softcut_buffers[voice], p1, p2, math.min(dur, samples[voice].end_point - p2), 0.001, preserve, 0) 
+end
+
+function clear_chops(start_voice, end_voice)
+  if play_level <= 2 then
+    for i = start_voice, end_voice do
+      params:lookup_param("voice "..i.." sample"):bang()
+    end
+  elseif play_level == 3 then
+    for i = 1,6 do
+      if math.random(100) < params:get("voice "..i.." alt prob") then
+        params:lookup_param("voice "..i.." alt sample"):bang()
+      else
+        params:lookup_param("voice "..i.." sample"):bang()
+      end
+    end
+  end
+end
+
+function register_hit(bank, c)
+  local addr = c.x + (c.y - 1)*4
+  hits[bank][addr] = hits[bank][addr] + 1
+  screen_dirty = true
+end
+
+function clear_hits(bank)
+  for i = 1,16 do
+    hits[bank][i] = 0
+  end
 end
 
 function reset_indices()
