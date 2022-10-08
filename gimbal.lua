@@ -50,7 +50,10 @@ play_level = 0
 local scale_names = {}
 local current_chord_name = ""
 
-local hits = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+local hits = {
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+}
 
 coords = {{x = 1, y = 1}, {x = 3, y = 3}, {x = 2, y = 3}, {x = 4, y = 3}, {x = 1, y = 3}}
 
@@ -267,25 +270,55 @@ function key(n,z)
   screen_dirty = true
 end
 
-function clear_hits()
+function clear_hits(bank)
   for i = 1,16 do
-    hits[i] = 0
+    hits[bank][i] = 0
   end
 end
 
-function register_hit(c)
+function register_hit(bank, c)
   local addr = c.x + (c.y - 1)*4
-  hits[addr] = hits[addr] + 1
+  hits[bank][addr] = hits[bank][addr] + 1
   screen_dirty = true
 end
 
 function play()
   stop()
   reset_indices()
-  seq_clock = clock.run(
+  
+  drum_seq_clock = clock.run(
     function()
       while true do
+        clock.sync(1/4)
         
+        if sounds_dirty then
+          update_sounds()
+          sounds_dirty = false
+        end
+        
+        clear_hits(1)
+        screen_dirty = true
+        
+        for i = 1,3 do
+          local seq_num = get_pin_location(i)
+          local val = sequences[seq_num]()
+          
+          if val == 1 then
+            register_hit(1, coords[i])
+            sc_helpers.play_slice(i,1)
+          end
+        end
+        
+        clock.sleep(0.08)
+        clear_hits(1)
+        screen_dirty = true
+      end
+    end
+  )
+  
+  chord_seq_clock = clock.run(
+    function()
+      while true do
         clock.sync(step_length_sequence[step_length_sequence_index]())
         
         if sounds_dirty then
@@ -293,43 +326,31 @@ function play()
           sounds_dirty = false
         end
         
-        clear_hits()
+        clear_hits(2)
         screen_dirty = true
         
-        for i = 1,4 do
-          local seq_num = get_pin_location(i)
-          local val = sequences[seq_num]()
+        local pin_index = 4
+        local seq_num = get_pin_location(pin_index)
+        local val = sequences[seq_num]()
           
-          if val == 1 then
-            register_hit(coords[i])
-          
-            if i == 4 then
-              if play_level >= 2 then
-                update_pitches()
+        if play_level >= 2 and val == 1 then
+          register_hit(2, coords[pin_index])
+          update_pitches()
   
-                sc_helpers.play_slice(4,4)
+          sc_helpers.play_slice(4,4)
               
-                clock.sleep(strum_sequence_a())
-                sc_helpers.play_slice(5,5)
+          clock.sleep(strum_sequence_a())
+          sc_helpers.play_slice(5,5)
               
-                if math.random(10) > 3 then
-                  clock.sleep(strum_sequence_b())
-                  sc_helpers.play_slice(6,6)
-                end
-              end
-
-            else
-              sc_helpers.play_slice(i,1)
-            end
+          if math.random(10) > 3 then
+            clock.sleep(strum_sequence_b())
+            sc_helpers.play_slice(6,6)
           end
         end
         
         clock.sleep(0.08)
-        clear_hits()
+        clear_hits(2)
         screen_dirty = true
-        
-        
-        
       end
     end
   )
@@ -337,11 +358,16 @@ function play()
 end
 
 function stop()
-  if seq_clock then
-    clock.cancel(seq_clock)
-    seq_active = false
+  if drum_seq_clock then
+    clock.cancel(drum_seq_clock)
+    drum_seq_active = false
   end
-  clear_hits()
+  if chord_seq_clock then
+    clock.cancel(chord_seq_clock)
+    chord_seq_active = false
+  end
+  clear_hits(1)
+  clear_hits(2)
   screen_dirty = true
 end
 
@@ -383,7 +409,8 @@ function redraw()
   
   for j = 1, 4 do
     for i = 1, 4 do
-      local hitcount = hits[i + (j - 1) * 4]
+      local hit_index = i + (j - 1) * 4
+      local hitcount = hits[1][hit_index] + hits[2][hit_index]
       screen.rect(42 + (i - 1) * 12, 10 + (j - 1) * 12, 10, 10)
       if hitcount > 0 then
         screen.level(math.min(4 * hitcount, 15))
@@ -402,14 +429,23 @@ function redraw()
       if (n == 4 or n == 5) and play_level < 2 then
         break
       end
-      local x = lfos.x[n].raw
-      local y = lfos.y[n].raw
-      screen.rect(42 + x * 46 - 1, 10 + y * 46 - 1, 3, 3)
+      local x = 42 + lfos.x[n].raw * 46
+      local y = 10 + lfos.y[n].raw * 46
+      screen.rect(x - 1, y - 1, 3, 3)
       screen.level(n == 5 and 2 or 0)
       screen.fill()
-      screen.pixel(42 + x * 46, 10 + y * 46)
-      screen.level(n == 5 and 0 or 3 + n * 2)
-      screen.fill()
+      if n ~= 4 then
+        screen.pixel(x, y)
+        screen.level(n == 5 and 0 or 3 + n * 2)
+        screen.fill()
+      else
+        screen.pixel(x - 1, y)
+        screen.pixel(x + 1, y)
+        screen.pixel(x, y - 1)
+        screen.pixel(x, y + 1)
+        screen.level(3)
+        screen.fill()
+      end
     end
   end
   
