@@ -39,7 +39,7 @@ sequences = {
 strum_sequence_a = s{0.036, 0.016, 0.036, 0.025, 0.025, 0.036, s{0, 0, 0, 0.025, 0.016}}
 strum_sequence_b = s{0.025, 0.016, 0, 0.016, 0.016, 0.025, 0, s{0, 0, 0.016, 0.036}}
 
-step_length_sequences = {
+cadence_sequences = {
   {
     s{1/2},
     s{1/4},
@@ -118,8 +118,8 @@ function init()
   
   sc_params.init()
   
-  default_alt_prob = {0,0,0,0,30,100}
-  default_reverse_prob = {0,40,0,0,50,30}
+  default_alt_prob = {2,75,2,5,30,100}
+  default_reverse_prob = {2,20,2,5,50,20}
 
   for i = 1,6 do
     params:add{type = "number", id = "voice "..i.." alt prob", name = "alt file probability ["..i.."]", default = default_alt_prob[i], 
@@ -162,19 +162,20 @@ function init()
     end
   end
 
+  params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
+  params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-2.flac")
+  params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
+  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+  params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
+  params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
+
   params:set("voice 1 sample",_path.audio.."nc03-ds/01-bd/01-bd_default-1.flac")
-  params:set("voice 2 sample",_path.audio.."nc03-ds/04-cp/04-cp_default-2.flac")
+  params:set("voice 2 sample",_path.audio.."nc03-ds/04-cp/04-cp_default-1.flac")
   params:set("voice 3 sample",_path.audio.."nc03-ds/07-hh/07-hh_default-1.flac")
   params:set("voice 4 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
   params:set("voice 5 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
   params:set("voice 6 sample",_path.audio.."nc03-ds/06-cb/06-cb_default-1.flac")
 
-  params:set("voice 1 alt sample",_path.audio.."nc03-ds/01-bd/01-bd_default-2.flac")
-  params:set("voice 2 alt sample",_path.audio.."nc03-ds/04-cp/04-cp_default-1.flac")
-  params:set("voice 3 alt sample",_path.audio.."nc03-ds/07-hh/07-hh_default-2.flac")
-  params:set("voice 4 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
-  params:set("voice 5 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_fm-lite.flac")
-  params:set("voice 6 alt sample",_path.audio.."nc03-ds/06-cb/06-cb_default-2.flac")
 
   init_lfos()
   randomize_lfos()
@@ -239,7 +240,9 @@ end
 
 function get_pin_location(n)
   local c = coords[n]
-  return territory[c.y][c.x]
+  local x = util.clamp(c.x, 1, 4)
+  local y = util.clamp(c.y, 1, 4)
+  return util.clamp(territory[y][x], 1, 7)
 end
 
 function randomize_lfos()
@@ -248,7 +251,8 @@ function randomize_lfos()
       lfos[k][i]:set("depth", math.random(100)/100)
       local shapes = {"sine","saw"}
       lfos[k][i]:set("shape", shapes[math.random(#shapes)])
-      lfos[k][i]:set("period", math.random(i == 5 and 24 or 64))
+      lfos[k][i]:set("mode", "clocked")
+      lfos[k][i]:set("period", i == 5 and math.random(24) or 2 * 2 ^ math.ceil(math.random(6)))
       lfos[k][i]:start()
     end
   end
@@ -275,13 +279,13 @@ end
 function update_sounds()
   if play_level <= 2 then
     for i = 1,6 do
-      sc_helpers.file_callback(params:get("voice "..i.." sample"), i)
+      params:lookup_param("voice "..i.." sample"):bang()
       params:set("reverse_"..i, 0)
     end
   elseif play_level == 3 then
     for i = 1,6 do
       if math.random(100) < params:get("voice "..i.." alt prob") then
-        sc_helpers.file_callback(params:get("voice "..i.." alt sample"), i)
+        params:lookup_param("voice "..i.." alt sample"):bang()
       end
       if math.random(100) < params:get("voice "..i.." reverse prob") then
         params:set("reverse_"..i, 1)
@@ -330,7 +334,7 @@ function play()
   drum_seq_clock = clock.run(
     function()
       while true do
-        clock.sync(step_length_sequences[1][params:get("cadence")]())
+        clock.sync(cadence_sequences[1][params:get("cadence")]())
         
         if sounds_dirty then
           update_sounds()
@@ -360,7 +364,7 @@ function play()
   chord_seq_clock = clock.run(
     function()
       while true do
-        clock.sync(step_length_sequences[2][params:get("cadence")]())
+        clock.sync(cadence_sequences[2][params:get("cadence")]())
         
         if sounds_dirty then
           update_sounds()
@@ -420,6 +424,12 @@ function reset_indices()
   end
   for i = 1,#strum_sequence_b do
     strum_sequence_b[i]:reset()
+  end
+  for i = 1,#cadence_sequences[1] do
+    cadence_sequences[1][i]:reset()
+  end
+  for i = 1,#cadence_sequences[2] do
+    cadence_sequences[2][i]:reset()
   end
   screen_dirty = true
 end
